@@ -89,6 +89,8 @@ using (var fileWriter = new StreamWriter(file))
 
             // Write the generated code for the measure to the file
             fileWriter.Write(output);
+
+            k = false; // Reset the flag after the first measure
         }
     }
 }
