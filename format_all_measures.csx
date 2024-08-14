@@ -1,5 +1,5 @@
 // This section formats DAX code for all objects in the model:
-// Measures, calculated tables, calculated columns, and calculated items (including format string expressions).
+// Measures, calculated tables, calculated columns, and calculated items
 
 // Format all measures in the model
 Model.AllMeasures.FormatDax();  // Calls the FormatDax method on all measures to standardize their format
