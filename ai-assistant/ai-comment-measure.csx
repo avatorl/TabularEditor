@@ -7,6 +7,7 @@ UseDaxAssistant();
 void UseDaxAssistant()
 {
     // CONFIGURATION SECTION
+    //To create an API key read https://help.openai.com/en/articles/9186755-managing-your-work-in-the-api-platform-with-projects
     string apiKey = "OPEN_AI_API_KEY";
     string assistantId = "ASSISTANT_ID"; // Replace with your Assistant ID
     string baseUrl = "https://api.openai.com/v1";   
