@@ -29,7 +29,7 @@ void UseDaxAssistant()
     string measureExpression = selectedMeasure.Expression;
 
     // Define the user's query for the assistant
-    string userQuery = $"Please add comments to the following measure. The result must be a valid DAX measure expression, as would be used directly inside a measure definition. Do not use any characters to identify code start and end (e.g, ```DAX and ```), output only DAX code. Only output the DAX code (without any qoute qoute marks outside of the measure code). Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. Consider the entire data model (refer to the provided DataModel.json file for context).\n\nMeasure Expression: {measureExpression}";
+    string userQuery = $"Please add comments to the following measure. Make sure first 1-2 rows are comments describing the entire measure and also add comment into the following code, explaining important code rows. The result must be a valid DAX measure expression, as would be used directly inside a measure definition. Do not use any characters to identify code start and end (e.g, ```DAX and ```), output only DAX code. Only output the DAX code (without any qoute qoute marks outside of the measure code). Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. Consider the entire data model (refer to the provided DataModel.json file for context).\n\nMeasure Expression: {measureExpression}";
 
     // Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
