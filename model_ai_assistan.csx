@@ -1,4 +1,5 @@
 // DRAFT !!! DRAFT !!! DRAFT !!!
+// To be converted into an assistant
 
 // Reference assemblies (commented out because they may not be needed in Tabular Editor)
 //#r "System.Net.Http.dll"
