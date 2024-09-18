@@ -28,6 +28,9 @@ void CreateDaxAssistant()
 
     // STEP 1: Export model data to JSON string and upload it to OpenAI storage
     string jsonContent = ExportModelToJsonString();
+    
+    // Save JSON file (optional)
+    //SaveDataModelToFile(jsonContent);
 
     // Convert the JSON string into a MemoryStream for upload
     var memoryStream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(jsonContent));
@@ -170,4 +173,25 @@ string ExportModelToJsonString()
 
     // Serialize the exported model to JSON with indentation for readability
     return Newtonsoft.Json.JsonConvert.SerializeObject(exportedModel, Newtonsoft.Json.Formatting.Indented);
+}
+
+// OPTIONAL FUNCTION: Save the DataModel.json to a file (commented out by default)
+void SaveDataModelToFile(string jsonContent)
+{
+    // Specify the file path where you want to save the DataModel.json
+    string filePath = @"D:\DataModel.json"; // Update the path as needed
+
+    try
+    {
+        // Write the JSON content to the specified file
+        System.IO.File.WriteAllText(filePath, jsonContent);
+
+        // Inform the user that the file was saved successfully
+        Info($"DataModel.json has been saved to {filePath}");
+    }
+    catch (System.Exception ex)
+    {
+        // Handle any exceptions that occur during file writing
+        Error($"Failed to save DataModel.json: {ex.Message}");
+    }
 }
