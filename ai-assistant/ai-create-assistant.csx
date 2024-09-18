@@ -3,8 +3,7 @@
 // Finally, it copies the assistant ID to the clipboard for future use.
 // Author: Andrzej Leszkiewicz https://www.linkedin.com/in/avatorl/
 
-// See https://platform.openai.com/playground/assistants for the created assistants
-// See https://platform.openai.com/storage for the uploaded files
+using Newtonsoft.Json.Linq;
 
 // Execute the function to create the DAX assistant
 CreateDaxAssistant();
@@ -12,7 +11,6 @@ CreateDaxAssistant();
 void CreateDaxAssistant()
 {
     // CONFIGURATION SECTION
-    //To create an API key read https://help.openai.com/en/articles/9186755-managing-your-work-in-the-api-platform-with-projects
     string apiKey = "OPEN_AI_API_KEY";
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
@@ -111,57 +109,31 @@ void CreateDaxAssistant()
 
 string ExportModelToJsonString()
 {
-    // Create a dictionary to hold the entire model structure
-    var exportedModel = new Dictionary<string, object>
-    {
-        { "Tables", new List<Dictionary<string, object>>() },
-        { "Relationships", new List<Dictionary<string, object>>() }
-    };
+    var modelJson = new JObject();
 
-    // Loop through all tables in the model
+    // Loop through each table in the model
+    var tables = new JArray();
     foreach (var table in Model.Tables)
     {
-        // Create a dictionary to hold table metadata
-        var exportedTable = new Dictionary<string, object>
+        // Check if the table is a calculation group
+        if (table is CalculationGroupTable calcGroupTable)
         {
-            { "TableName", table.Name },
-            { "Columns", new List<Dictionary<string, object>>() },
-            { "Measures", new List<Dictionary<string, object>>() }
-        };
-
-        // Export columns
-        foreach (var column in table.Columns)
-        {
-            var exportedColumn = new Dictionary<string, object>
-            {
-                { "ColumnName", column.Name },
-                { "DataType", column.DataType.ToString() },
-                { "Expression", column is CalculatedColumn ? ((CalculatedColumn)column).Expression : null }
-            };
-            // Add the column to the table's columns list
-            ((List<Dictionary<string, object>>)exportedTable["Columns"]).Add(exportedColumn);
+            var calcGroupJson = GetCalculationGroupMetadata(calcGroupTable);
+            tables.Add(calcGroupJson);
         }
-
-        // Export measures
-        foreach (var measure in table.Measures)
+        else
         {
-            var exportedMeasure = new Dictionary<string, object>
-            {
-                { "MeasureName", measure.Name },
-                { "Expression", measure.Expression }
-            };
-            // Add the measure to the table's measures list
-            ((List<Dictionary<string, object>>)exportedTable["Measures"]).Add(exportedMeasure);
+            // Handle regular tables
+            tables.Add(GetTableMetadata(table));
         }
-
-        // Add the table to the model's tables list
-        ((List<Dictionary<string, object>>)exportedModel["Tables"]).Add(exportedTable);
     }
+    modelJson["Tables"] = tables;
 
-    // Export relationships
+    // Relationships
+    var relationships = new JArray();
     foreach (var relationship in Model.Relationships)
     {
-        var exportedRelationship = new Dictionary<string, object>
+        var relJson = new JObject
         {
             { "FromTable", relationship.FromTable.Name },
             { "FromColumn", relationship.FromColumn.Name },
@@ -169,13 +141,122 @@ string ExportModelToJsonString()
             { "ToColumn", relationship.ToColumn.Name },
             { "IsActive", relationship.IsActive }
         };
-        // Add the relationship to the model's relationships list
-        ((List<Dictionary<string, object>>)exportedModel["Relationships"]).Add(exportedRelationship);
+        relationships.Add(relJson);
     }
+    modelJson["Relationships"] = relationships;
 
     // Serialize the exported model to JSON with indentation for readability
-    return Newtonsoft.Json.JsonConvert.SerializeObject(exportedModel, Newtonsoft.Json.Formatting.Indented);
+    return Newtonsoft.Json.JsonConvert.SerializeObject(modelJson, Newtonsoft.Json.Formatting.Indented);
 }
+
+JObject GetTableMetadata(Table table)
+{
+    var tableJson = new JObject
+    {
+        ["Name"] = table.Name,
+        ["Description"] = table.Description,
+        ["IsCalculatedTable"] = table.Partitions.Any(p => !string.IsNullOrEmpty(p.Expression))
+    };
+
+    // Columns
+    var columns = new JArray();
+    foreach (var column in table.Columns)
+    {
+        var columnJson = new JObject
+        {
+            ["Name"] = column.Name,
+            ["DataType"] = column.DataType.ToString(),
+            ["IsHidden"] = column.IsHidden,
+            ["FormatString"] = column.FormatString
+        };
+
+        if (column is CalculatedColumn calculatedColumn)
+        {
+            columnJson["IsCalculatedColumn"] = true;
+            columnJson["Expression"] = calculatedColumn.Expression;
+        }
+        else
+        {
+            columnJson["IsCalculatedColumn"] = false;
+        }
+        columns.Add(columnJson);
+    }
+    tableJson["Columns"] = columns;
+
+    // Measures
+    var measures = new JArray();
+    foreach (var measure in table.Measures)
+    {
+        var measureJson = new JObject
+        {
+            ["Name"] = measure.Name,
+            ["Expression"] = measure.Expression,
+            ["FormatString"] = measure.FormatString,
+            ["IsHidden"] = measure.IsHidden
+        };
+        measures.Add(measureJson);
+    }
+    tableJson["Measures"] = measures;
+
+    return tableJson;
+}
+
+JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
+{
+    var calcGroupJson = new JObject
+    {
+        ["Name"] = calcGroupTable.Name,
+        ["Description"] = calcGroupTable.Description
+    };
+
+    // Calculation Items
+    var calcItems = new JArray();
+    foreach (var item in calcGroupTable.CalculationItems)
+    {
+        var itemJson = new JObject
+        {
+            ["Name"] = item.Name,
+            ["Expression"] = item.Expression
+        };
+        calcItems.Add(itemJson);
+    }
+    calcGroupJson["CalculationItems"] = calcItems;
+
+    // Measures within Calculation Groups
+    var calcGroupMeasures = new JArray();
+    foreach (var measure in calcGroupTable.Measures)
+    {
+        var measureJson = new JObject
+        {
+            ["Name"] = measure.Name,
+            ["Expression"] = measure.Expression
+        };
+        calcGroupMeasures.Add(measureJson);
+    }
+    calcGroupJson["Measures"] = calcGroupMeasures;
+
+    // Calculated Columns within Calculation Groups
+    var calcColumns = new JArray();
+    foreach (var column in calcGroupTable.Columns)
+    {
+        if (column is CalculatedColumn calculatedColumn)
+        {
+            var columnJson = new JObject
+            {
+                ["Name"] = calculatedColumn.Name,
+                ["Expression"] = calculatedColumn.Expression,
+                ["DataType"] = calculatedColumn.DataType.ToString(),
+                ["IsHidden"] = calculatedColumn.IsHidden,
+                ["FormatString"] = calculatedColumn.FormatString
+            };
+            calcColumns.Add(columnJson);
+        }
+    }
+    calcGroupJson["CalculatedColumns"] = calcColumns;
+
+    return calcGroupJson;
+}
+
 
 // OPTIONAL FUNCTION: Save the DataModel.json to a file (commented out by default)
 void SaveDataModelToFile(string jsonContent)
