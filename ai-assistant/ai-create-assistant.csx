@@ -11,6 +11,7 @@ CreateDaxAssistant();
 void CreateDaxAssistant()
 {
     // CONFIGURATION SECTION
+    ////To create an API key read https://help.openai.com/en/articles/9186755-managing-your-work-in-the-api-platform-with-projects
     string apiKey = "OPEN_AI_API_KEY";
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
