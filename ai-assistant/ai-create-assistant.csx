@@ -1,6 +1,7 @@
 // This script creates a DAX assistant using the OpenAI API.
 // It exports your Tabular model to JSON, uploads it, and configures an assistant.
 // Finally, it copies the assistant ID to the clipboard for future use.
+// Author: Andrzej Leszkiewicz https://www.linkedin.com/in/avatorl/
 
 // See https://platform.openai.com/playground/assistants for the created assistants
 // See https://platform.openai.com/storage for the uploaded files
