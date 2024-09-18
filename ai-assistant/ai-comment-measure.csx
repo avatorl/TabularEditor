@@ -1,5 +1,6 @@
 // This script interacts with the OpenAI assistant using the assistant ID.
 // It sends a selected DAX measure to the assistant for commenting, and creates a new measure with the AI-generated DAX code.
+// Author: Andrzej Leszkiewicz https://www.linkedin.com/in/avatorl/
 
 // Execute the function to interact with the DAX assistant and comment on the selected measure
 UseDaxAssistant();
