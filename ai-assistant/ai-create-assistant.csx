@@ -11,7 +11,7 @@ CreateDaxAssistant();
 void CreateDaxAssistant()
 {
     // CONFIGURATION SECTION
-    string apiKey = "OPEN_AI_API_KEY";
+    string apiKey = "OPEN_AI_API_KEY"; // Replace with your OpenAI API key
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
     string name = "Tabular Editor DAX Assistant";
@@ -26,9 +26,9 @@ void CreateDaxAssistant()
     // Add the required OpenAI-Beta header
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
-    // STEP 1: Export model data to JSON string and upload it to OpenAI storage
+    // STEP 1: Export model data to JSON string
     string jsonContent = ExportModelToJsonString();
-    
+
     // Save JSON file (optional)
     //SaveDataModelToFile(jsonContent);
 
@@ -58,6 +58,34 @@ void CreateDaxAssistant()
     var uploadResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(uploadResponse.Content.ReadAsStringAsync().Result);
     string fileId = uploadResult.id.ToString();
 
+    // STEP 1.5: Create a vector store from the uploaded file
+    var vectorStorePayload = new
+    {
+        file_ids = new[] { fileId }
+    };
+
+    // Serialize the vector store configuration to JSON
+    var vectorStoreRequestBody = new System.Net.Http.StringContent(
+        Newtonsoft.Json.JsonConvert.SerializeObject(vectorStorePayload),
+        System.Text.Encoding.UTF8,
+        "application/json"
+    );
+
+    // Send a request to create the vector store
+    var vectorStoreResponse = client.PostAsync($"{baseUrl}/vector_stores", vectorStoreRequestBody).Result;
+
+    // Check if the vector store creation was successful
+    if (!vectorStoreResponse.IsSuccessStatusCode)
+    {
+        var errorContent = vectorStoreResponse.Content.ReadAsStringAsync().Result;
+        Error($"Vector store creation failed: {errorContent}");
+        return;
+    }
+
+    // Deserialize the response to get the vector store ID
+    var vectorStoreResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(vectorStoreResponse.Content.ReadAsStringAsync().Result);
+    string vectorStoreId = vectorStoreResult.id.ToString();
+
     // STEP 2: Create and configure the assistant using the uploaded data model
     var assistantPayload = new
     {
@@ -65,15 +93,15 @@ void CreateDaxAssistant()
         instructions = instructions,
         model = model,
 
-        // Adding the code interpreter tool
-        tools = new[] { new { type = "code_interpreter" } },
+        // Adding the file search tool
+        tools = new[] { new { type = "file_search" } },
 
-        // Attaching the data model file to the assistant's code interpreter tool
+        // Attaching the vector store to the assistant's file search tool
         tool_resources = new
         {
-            code_interpreter = new
+            file_search = new
             {
-                file_ids = new[] { fileId }
+                vector_store_ids = new[] { vectorStoreId }
             }
         }
     };
@@ -256,7 +284,6 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
 
     return calcGroupJson;
 }
-
 
 // OPTIONAL FUNCTION: Save the DataModel.json to a file (commented out by default)
 void SaveDataModelToFile(string jsonContent)
