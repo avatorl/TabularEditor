@@ -15,7 +15,7 @@ void CreateDaxAssistant()
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
     string name = "Tabular Editor DAX Assistant";
-    string instructions = "You are a DAX assistant for Tabular Editor. When asked, you comment, optimize, or suggest DAX code. You're aware of the data model (the attached DataModel.json file provides data model description).";
+    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context.";
     // END OF CONFIGURATION
 
     // Create an HttpClient instance for making API requests
