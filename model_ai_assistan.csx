@@ -1,3 +1,4 @@
+// Author: Andrzej Leszkiewicz
 // DRAFT !!! DRAFT !!! DRAFT !!!
 // To be converted into an assistant
 
