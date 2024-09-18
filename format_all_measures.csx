@@ -2,25 +2,23 @@
 // Measures, calculated tables, calculated columns, and calculated items
 
 // Format all measures in the model
-Model.AllMeasures.FormatDax();  // Calls the FormatDax method on all measures to standardize their format
+Model.AllMeasures.FormatDax();
 
-// Iterate through each table in the model to format its DAX code
-foreach (var t in Model.Tables) {
-    // Format the DAX code for the current table
-    t.FormatDax();
-    
-    // Iterate through each calculated column in the current table
-    foreach (var cc in t.CalculatedColumns) {
-        // Format the DAX code for the calculated column
-        cc.FormatDax();    
+// Iterate through each table in the model to format DAX code
+foreach (var table in Model.Tables) {
+    // Format the DAX code for the table itself
+    table.FormatDax();
+
+    // Format the DAX code for each calculated column in the table
+    foreach (var calculatedColumn in table.CalculatedColumns) {
+        calculatedColumn.FormatDax();
     }
 }
 
 // Iterate through each calculation group table in the model
-foreach (var cg in Model.Tables.OfType<CalculationGroupTable>()) {
-    // Iterate through each calculation item in the current calculation group
-    foreach (var ci in cg.CalculationItems) {
-        // Format the DAX code for the calculation item
-        ci.FormatDax();
+foreach (var calculationGroupTable in Model.Tables.OfType<CalculationGroupTable>()) {
+    // Format the DAX code for each calculation item in the calculation group table
+    foreach (var calculationItem in calculationGroupTable.CalculationItems) {
+        calculationItem.FormatDax();
     }
 }
