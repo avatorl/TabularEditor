@@ -1,6 +1,6 @@
 # Open AI assistant for Tabular Editor
 
-C# scripts:
+C# scripts for Tabular Editor:
 
 - ai-create-assistant.csx - creates an Open AI assistant with an attached data model description (in JSON format)
 
