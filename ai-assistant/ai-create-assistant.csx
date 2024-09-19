@@ -143,7 +143,8 @@ string CreateVectorStore(System.Net.Http.HttpClient client, string baseUrl, stri
 {
     var vectorStorePayload = new
     {
-        file_ids = fileIds
+        file_ids = fileIds,
+        name = "DAX Assistant Vector Store"
     };
 
     var vectorStoreRequestBody = new System.Net.Http.StringContent(
