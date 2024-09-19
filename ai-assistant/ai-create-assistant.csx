@@ -1,8 +1,3 @@
-// This script creates a DAX assistant using the OpenAI API.
-// It exports your Tabular model to JSON, uploads it, and configures an assistant.
-// Finally, it copies the assistant ID to the clipboard for future use.
-// Author: Andrzej Leszkiewicz https://www.linkedin.com/in/avatorl/
-
 using Newtonsoft.Json.Linq;
 
 // Execute the function to create the DAX assistant
@@ -15,7 +10,9 @@ void CreateDaxAssistant()
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
     string name = "Tabular Editor DAX Assistant";
-    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context.";
+    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context. Utilize the attached The Definitive Guide to DAX.pdf file for better understanding of DAX language.";
+    string pdfFileName = "The Definitive Guide to DAX.pdf"; // Name of your PDF file
+    string pdfFilePath = @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf"; // Path to your PDF file
     // END OF CONFIGURATION
 
     // Create an HttpClient instance for making API requests
@@ -23,80 +20,33 @@ void CreateDaxAssistant()
 
     // Add the authorization header with the API key
     client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-    // Add the required OpenAI-Beta header
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
-    // STEP 1: Export model data to JSON string
+    // STEP 1: Generate DataModel.json content from memory
     string jsonContent = ExportModelToJsonString();
 
     // Save JSON file (optional)
     //SaveDataModelToFile(jsonContent);
 
-    // Convert the JSON string into a MemoryStream for upload
-    var memoryStream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(jsonContent));
+    // STEP 2: Upload DataModel.json from memory
+    string dataModelFileId = UploadFileFromMemory(client, baseUrl, jsonContent, "DataModel.json");
+    if (string.IsNullOrEmpty(dataModelFileId)) return;
 
-    // Create multipart form data content for the file upload
-    var formContent = new System.Net.Http.MultipartFormDataContent();
-    var streamContent = new System.Net.Http.StreamContent(memoryStream);
+    // STEP 3: Upload the PDF file from local storage
+    string pdfFileId = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
+    if (string.IsNullOrEmpty(pdfFileId)) return;
 
-    // Add the file content and purpose to the form data
-    formContent.Add(streamContent, "file", "DataModel.json");
-    formContent.Add(new System.Net.Http.StringContent("assistants"), "purpose");
+    // STEP 4: Create a vector store from the uploaded files
+    string vectorStoreId = CreateVectorStore(client, baseUrl, new[] { dataModelFileId, pdfFileId });
+    if (string.IsNullOrEmpty(vectorStoreId)) return;
 
-    // Upload the file to OpenAI
-    var uploadResponse = client.PostAsync($"{baseUrl}/files", formContent).Result;
-
-    // Check if the file upload was successful
-    if (!uploadResponse.IsSuccessStatusCode)
-    {
-        var errorContent = uploadResponse.Content.ReadAsStringAsync().Result;
-        Error($"File upload failed: {errorContent}");
-        return;
-    }
-
-    // Deserialize the response to get the file ID
-    var uploadResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(uploadResponse.Content.ReadAsStringAsync().Result);
-    string fileId = uploadResult.id.ToString();
-
-    // STEP 1.5: Create a vector store from the uploaded file
-    var vectorStorePayload = new
-    {
-        file_ids = new[] { fileId }
-    };
-
-    // Serialize the vector store configuration to JSON
-    var vectorStoreRequestBody = new System.Net.Http.StringContent(
-        Newtonsoft.Json.JsonConvert.SerializeObject(vectorStorePayload),
-        System.Text.Encoding.UTF8,
-        "application/json"
-    );
-
-    // Send a request to create the vector store
-    var vectorStoreResponse = client.PostAsync($"{baseUrl}/vector_stores", vectorStoreRequestBody).Result;
-
-    // Check if the vector store creation was successful
-    if (!vectorStoreResponse.IsSuccessStatusCode)
-    {
-        var errorContent = vectorStoreResponse.Content.ReadAsStringAsync().Result;
-        Error($"Vector store creation failed: {errorContent}");
-        return;
-    }
-
-    // Deserialize the response to get the vector store ID
-    var vectorStoreResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(vectorStoreResponse.Content.ReadAsStringAsync().Result);
-    string vectorStoreId = vectorStoreResult.id.ToString();
-
-    // STEP 2: Create and configure the assistant using the uploaded data model
+    // STEP 5: Create and configure the assistant using the uploaded files
     var assistantPayload = new
     {
         name = name,
         instructions = instructions,
         model = model,
-
-        // Adding the file search tool
         tools = new[] { new { type = "file_search" } },
-
-        // Attaching the vector store to the assistant's file search tool
         tool_resources = new
         {
             file_search = new
@@ -106,17 +56,14 @@ void CreateDaxAssistant()
         }
     };
 
-    // Serialize the assistant configuration to JSON
     var assistantRequestBody = new System.Net.Http.StringContent(
         Newtonsoft.Json.JsonConvert.SerializeObject(assistantPayload),
         System.Text.Encoding.UTF8,
         "application/json"
     );
 
-    // Send a request to create the assistant
     var assistantResponse = client.PostAsync($"{baseUrl}/assistants", assistantRequestBody).Result;
 
-    // Check if the assistant creation was successful
     if (!assistantResponse.IsSuccessStatusCode)
     {
         var errorContent = assistantResponse.Content.ReadAsStringAsync().Result;
@@ -124,17 +71,101 @@ void CreateDaxAssistant()
         return;
     }
 
-    // Deserialize the response to get the assistant ID
     var assistantResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(assistantResponse.Content.ReadAsStringAsync().Result);
     string assistantId = assistantResult.id.ToString();
 
     // Copy the assistant ID to the clipboard for future use
     System.Windows.Forms.Clipboard.SetText(assistantId);
 
-    // Inform the user that the assistant was created successfully
     Info($"Assistant created successfully. Assistant ID: {assistantId} (copied to clipboard)");
 }
 
+// Function to upload a JSON file from memory instead of from disk
+string UploadFileFromMemory(System.Net.Http.HttpClient client, string baseUrl, string jsonContent, string fileName)
+{
+    try
+    {
+        var memoryStream = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(jsonContent));
+        var formContent = new System.Net.Http.MultipartFormDataContent();
+        var streamContent = new System.Net.Http.StreamContent(memoryStream);
+        formContent.Add(streamContent, "file", fileName);
+        formContent.Add(new System.Net.Http.StringContent("assistants"), "purpose");
+
+        var uploadResponse = client.PostAsync($"{baseUrl}/files", formContent).Result;
+
+        if (!uploadResponse.IsSuccessStatusCode)
+        {
+            var errorContent = uploadResponse.Content.ReadAsStringAsync().Result;
+            Error($"File upload failed: {errorContent}");
+            return null;
+        }
+
+        var uploadResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(uploadResponse.Content.ReadAsStringAsync().Result);
+        return uploadResult.id.ToString();
+    }
+    catch (Exception ex)
+    {
+        Error($"File upload error: {ex.Message}");
+        return null;
+    }
+}
+
+string UploadFile(System.Net.Http.HttpClient client, string baseUrl, string filePath, string fileName)
+{
+    try
+    {
+        var memoryStream = new System.IO.MemoryStream(System.IO.File.ReadAllBytes(filePath));
+        var formContent = new System.Net.Http.MultipartFormDataContent();
+        var streamContent = new System.Net.Http.StreamContent(memoryStream);
+        formContent.Add(streamContent, "file", fileName);
+        formContent.Add(new System.Net.Http.StringContent("assistants"), "purpose");
+
+        var uploadResponse = client.PostAsync($"{baseUrl}/files", formContent).Result;
+
+        if (!uploadResponse.IsSuccessStatusCode)
+        {
+            var errorContent = uploadResponse.Content.ReadAsStringAsync().Result;
+            Error($"File upload failed: {errorContent}");
+            return null;
+        }
+
+        var uploadResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(uploadResponse.Content.ReadAsStringAsync().Result);
+        return uploadResult.id.ToString();
+    }
+    catch (Exception ex)
+    {
+        Error($"File upload error: {ex.Message}");
+        return null;
+    }
+}
+
+string CreateVectorStore(System.Net.Http.HttpClient client, string baseUrl, string[] fileIds)
+{
+    var vectorStorePayload = new
+    {
+        file_ids = fileIds
+    };
+
+    var vectorStoreRequestBody = new System.Net.Http.StringContent(
+        Newtonsoft.Json.JsonConvert.SerializeObject(vectorStorePayload),
+        System.Text.Encoding.UTF8,
+        "application/json"
+    );
+
+    var vectorStoreResponse = client.PostAsync($"{baseUrl}/vector_stores", vectorStoreRequestBody).Result;
+
+    if (!vectorStoreResponse.IsSuccessStatusCode)
+    {
+        var errorContent = vectorStoreResponse.Content.ReadAsStringAsync().Result;
+        Error($"Vector store creation failed: {errorContent}");
+        return null;
+    }
+
+    var vectorStoreResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(vectorStoreResponse.Content.ReadAsStringAsync().Result);
+    return vectorStoreResult.id.ToString();
+}
+
+// Function to export model to JSON string (from memory)
 string ExportModelToJsonString()
 {
     var modelJson = new JObject();
