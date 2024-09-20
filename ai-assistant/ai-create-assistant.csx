@@ -7,6 +7,10 @@ CreateOrUpdateDaxAssistant();
 
 void CreateOrUpdateDaxAssistant()
 {
+
+    // Initialize HttpClient for making API requests
+    var client = new System.Net.Http.HttpClient();
+
     // CONFIGURATION SECTION
     // Set the OpenAI API key (replace with your actual key)
     string apiKey = "OPEN_AI_API_KEY";
@@ -20,16 +24,14 @@ void CreateOrUpdateDaxAssistant()
 
     // Define the PDF file details
     string pdfFileName = "The Definitive Guide to DAX.pdf"; // Name of the PDF file
-    string pdfFileIdTheDefGuide = "file-tDK7XSWnXdOqqsq01h5zvV5j"; // Existing file ID in OpenAI storage. If not "" then the existing file will be used intstead of uploading from pdfFilePath
+    string pdfFileIdTheDefGuide = GetFileIdByName(client, baseUrl, apiKey, pdfFileName); // Use string pdfFileIdTheDefGuide = "" to force file uploading otherwise existing in the storage <pdfFileName> will be used instead of uploading <pdfFilePath>
     string pdfFilePath = @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf"; // Local file path
 
     // END OF CONFIGURATION
 
-    // Initialize HttpClient for making API requests
-    var client = new System.Net.Http.HttpClient();
-
-    // Add authorization header with API key
-    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+    // Add authorization header with API key using AuthenticationHeaderValue
+    client.DefaultRequestHeaders.Authorization = 
+    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
     // Retrieve the list of existing assistants that match the "TE -" naming pattern
@@ -762,3 +764,35 @@ void SaveDataModelToFile(string jsonContent)
         Error($"Failed to save DataModel.json: {ex.Message}");
     }
 }
+
+string GetFileIdByName(System.Net.Http.HttpClient client, string baseUrl, string apiKey, string fileNameToFind)
+{
+    // Set the authorization header
+    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+    // Make the GET request to fetch the list of files
+    var response = client.GetAsync($"{baseUrl}/files").Result;
+
+    if (response.IsSuccessStatusCode)
+    {
+        var content = response.Content.ReadAsStringAsync().Result;
+        var filesData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(content);
+
+        // Search for the file by name
+        foreach (var file in filesData["data"])
+        {
+            if (file["filename"].ToString() == fileNameToFind)
+            {
+                return file["id"].ToString(); // Return the file ID if found
+            }
+        }
+
+        return ""; // Return empty string if file not found
+    }
+    else
+    {
+        Console.WriteLine($"Error: {response.StatusCode}, {response.ReasonPhrase}");
+        return "";
+    }
+}
+
