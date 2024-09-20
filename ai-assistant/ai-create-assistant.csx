@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 // Execute the function to create or update the DAX assistant
 CreateOrUpdateDaxAssistant();
@@ -12,9 +13,25 @@ void CreateOrUpdateDaxAssistant()
     var client = new System.Net.Http.HttpClient();
 
     // CONFIGURATION SECTION
-    // Set the OpenAI API key (replace with your actual key)
-    string apiKey = "OPEN_AI_API_KEY";
+    // OpenAI API key, either provided directly or fetched from the user's environment variables
+    string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable
+    string apiKey = string.Empty;
 
+    // If API key is not provided directly, attempt to retrieve it from user environment variables
+    if (string.IsNullOrEmpty(apiKeyInput))
+    {
+        using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
+        {
+            if (userKey != null)
+            {
+                apiKey = userKey.GetValue("OPENAI_TE_API_KEY") as string;
+            }
+        }
+    }
+    else
+    {
+        apiKey = apiKeyInput;
+    }
     // Set the base API URL and model to be used
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
