@@ -1,4 +1,6 @@
 using Newtonsoft.Json.Linq;
+using Microsoft.Win32;
+
 
 // This script interacts with an OpenAI assistant using an assistant ID.
 // It sends a selected DAX measure for commenting, retrieves the AI-generated comments,
@@ -9,8 +11,43 @@ UseDaxAssistant(); // Initiates the process of interacting with the AI assistant
 void UseDaxAssistant()
 {
     // --- CONFIGURATION SECTION ---
-    string apiKey = "OPEN_AI_API_KEY"; // Your OpenAI API key
-    string assistantId = "ASSISTANT_ID"; // The assistant ID you want to use
+    // OpenAI API key, either provided directly or fetched from the user's environment variables
+    string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable
+    string apiKey = string.Empty;
+
+    // If API key is not provided directly, attempt to retrieve it from user environment variables
+    if (string.IsNullOrEmpty(apiKeyInput))
+    {
+        using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
+        {
+            if (userKey != null)
+            {
+                apiKey = userKey.GetValue("OPENAI_TE_API_KEY") as string;
+            }
+        }
+    }
+    else
+    {
+        apiKey = apiKeyInput;
+    }
+    string assistantIdInput = ""; // The assistant ID you want to use
+    string assistantId = string.Empty;
+    // If assistantId is not provided directly, attempt to retrieve it from user environment variables
+    if (string.IsNullOrEmpty(assistantIdInput))
+    {
+        using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
+        {
+            if (userKey != null)
+            {
+                assistantId = userKey.GetValue("OPENAI_TE_ASSISTANT_ID") as string;
+            }
+        }
+    }
+    else
+    {
+        assistantId = assistantIdInput;
+    }
+
     string baseUrl = "https://api.openai.com/v1"; // Base API URL
     int maxAttempts = 10; // Maximum number of attempts to poll the run status
     // --- END OF CONFIGURATION ---
