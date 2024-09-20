@@ -504,6 +504,9 @@ void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, strin
     string assistantId = assistantResult.id.ToString();
     System.Windows.Forms.Clipboard.SetText(assistantId);
 
+     // Set the environment variable for the current user (put assistant id into the variable)
+    Environment.SetEnvironmentVariable("OPENAI_TE_ASSISTANT_ID", assistantId, EnvironmentVariableTarget.User);
+
     Info($"Assistant created successfully. Assistant ID: {assistantId} (copied to clipboard)");
 }
 
