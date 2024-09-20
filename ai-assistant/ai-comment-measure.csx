@@ -10,7 +10,7 @@ void UseDaxAssistant()
 {
     // --- CONFIGURATION SECTION ---
     string apiKey = "OPEN_AI_API_KEY"; // Your OpenAI API key
-    string assistantId = "asst_h4nZvnYmh0qzbkBxYITattvc"; // The assistant ID you want to use
+    string assistantId = "ASSISTANT_ID"; // The assistant ID you want to use
     string baseUrl = "https://api.openai.com/v1"; // Base API URL
     int maxAttempts = 10; // Maximum number of attempts to poll the run status
     // --- END OF CONFIGURATION ---
@@ -28,7 +28,7 @@ void UseDaxAssistant()
     string measureExpression = selectedMeasure.Expression;
 
     // Step 3: Define the user's query for the assistant
-    string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. Make sure first 1-5 rows are comments briefly describing the entire measure (measure description) and also add comment into the following DAX code, explaining all important code rows. The result must be a valid DAX measure expression, as would be used directly inside a measure definition. Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. Only output the DAX code (without any qoute marks outside of the measure code). Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, without changing the original DAX code (other than adding comments). Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
+    string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. Make sure first 1-5 rows are comments briefly describing the entire measure (measure description) and also add comment into the following DAX code, explaining all important code rows. The result must be a valid DAX measure expression, as would be used directly inside a measure definition. Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. Only output the DAX code (without any quote marks outside of the measure code). Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, without changing the original DAX code (other than adding comments). Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
 
     // Step 4: Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
@@ -37,20 +37,43 @@ void UseDaxAssistant()
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
-        // Step 5: Create a new thread for the conversation
-        var threadResponse = client.PostAsync($"{baseUrl}/threads", null).Result;
+        // Step 5: Get the vector store associated with the assistant
+        var vectorStoreId = GetVectorStoreForAssistant(client, baseUrl, assistantId);
+        if (vectorStoreId == null)
+        {
+            Error("No vector store available to use.");
+            return;
+        }
+
+        // Step 6: Create a new thread for the conversation with the vector store attached
+        var threadPayload = new
+        {
+            tool_resources = new {
+                file_search = new {
+                    vector_store_ids = new[] { vectorStoreId }
+                }
+            }
+        };
+
+        var threadRequestBody = new System.Net.Http.StringContent(
+            Newtonsoft.Json.JsonConvert.SerializeObject(threadPayload),
+            System.Text.Encoding.UTF8,
+            "application/json"
+        );
+
+        var threadResponse = client.PostAsync($"{baseUrl}/threads", threadRequestBody).Result;
         if (!threadResponse.IsSuccessStatusCode)
         {
             LogApiError(threadResponse);
             return; // Exit on API error
         }
 
-        // Step 6: Parse the response to get the thread ID
+        // Step 7: Parse the response to get the thread ID
         var threadContent = threadResponse.Content.ReadAsStringAsync().Result;
         var threadResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(threadContent);
         string threadId = threadResult.id.ToString(); // Extract thread ID
 
-        // Step 7: Create a user message and add it to the thread
+        // Step 8: Create a user message and add it to the thread
         var messagePayload = new
         {
             role = "user",
@@ -70,7 +93,7 @@ void UseDaxAssistant()
             return;
         }
 
-        // Step 8: Run the assistant using the thread and assistant ID
+        // Step 9: Run the assistant using the thread and assistant ID
         var runPayload = new { assistant_id = assistantId };
         var runRequestBody = new System.Net.Http.StringContent(
             Newtonsoft.Json.JsonConvert.SerializeObject(runPayload),
@@ -89,7 +112,7 @@ void UseDaxAssistant()
         string runId = runResult.id.ToString();
         string runStatus = runResult.status.ToString();
 
-        // Step 9: Poll the run status until it's completed or failed
+        // Step 10: Poll the run status until it's completed or failed
         int attempts = 1;
         while (runStatus != "completed" && runStatus != "failed" && attempts < maxAttempts)
         {
@@ -107,14 +130,14 @@ void UseDaxAssistant()
             runStatus = runStatusResult.status.ToString();
         }
 
-        // Step 10: Check if the assistant run failed or timed out
+        // Step 11: Check if the assistant run failed or timed out
         if (runStatus == "failed" || attempts >= maxAttempts)
         {
             Error("Operation failed or timed out.");
             return;
         }
 
-        // Step 11: Retrieve the messages from the thread to get the assistant's response
+        // Step 12: Retrieve the messages from the thread to get the assistant's response
         var messagesResponse = client.GetAsync($"{baseUrl}/threads/{threadId}/messages").Result;
         if (!messagesResponse.IsSuccessStatusCode)
         {
@@ -125,7 +148,7 @@ void UseDaxAssistant()
         var messagesResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(messagesResponse.Content.ReadAsStringAsync().Result);
         string updatedDaxExpression = string.Empty;
 
-        // Step 12: Extract the AI-generated DAX expression from the assistant's message
+        // Step 13: Extract the AI-generated DAX expression from the assistant's message
         foreach (var msg in messagesResult.data)
         {
             if (msg.role.ToString() == "assistant")
@@ -144,7 +167,7 @@ void UseDaxAssistant()
             return;
         }
 
-        // Step 13: Create a backup of the original measure
+        // Step 14: Create a backup of the original measure
         Guid newGuid = Guid.NewGuid(); // Generate a unique identifier
         string backupMeasureName = $"{selectedMeasure.Name}_backup_{newGuid}";
 
@@ -153,19 +176,18 @@ void UseDaxAssistant()
         newMeasure.Description = selectedMeasure.Description;
         newMeasure.FormatString = selectedMeasure.FormatString;
 
-        // Step 14: Update the selected measure with the AI-generated DAX code and description
-try
-{
-    JObject parsedJson = JObject.Parse(updatedDaxExpression);
-    selectedMeasure.Expression = parsedJson["expression"].ToString();
-    selectedMeasure.Description = parsedJson["description"].ToString();
-    selectedMeasure.FormatDax(); // Format the measure for better readability
-}
-catch
-{
-    Output(updatedDaxExpression);
-}
-        
+        // Step 15: Update the selected measure with the AI-generated DAX code and description
+        try
+        {
+            JObject parsedJson = JObject.Parse(updatedDaxExpression);
+            selectedMeasure.Expression = parsedJson["expression"].ToString();
+            selectedMeasure.Description = parsedJson["description"].ToString();
+            selectedMeasure.FormatDax(); // Format the measure for better readability
+        }
+        catch
+        {
+            Output(updatedDaxExpression);
+        }
     }
 }
 
@@ -183,4 +205,29 @@ void LogApiError(System.Net.Http.HttpResponseMessage response)
     {
         Error($"API call failed. Status: {response.StatusCode}, Error Content: {errorContent}, Exception: {ex.Message}");
     }
+}
+
+// Function to get the vector store attached to the assistant
+string GetVectorStoreForAssistant(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
+{
+    // Retrieve the assistant's configuration
+    var response = client.GetAsync($"{baseUrl}/assistants/{assistantId}").Result;
+
+    if (!response.IsSuccessStatusCode)
+    {
+        var errorContent = response.Content.ReadAsStringAsync().Result;
+        Error($"Failed to retrieve assistant configuration: {errorContent}");
+        return null;
+    }
+
+    var assistantData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(response.Content.ReadAsStringAsync().Result);
+
+    // Check if vector_store_ids are present in the assistant's tool_resources
+    if (assistantData.tool_resources?.file_search?.vector_store_ids != null)
+    {
+        return assistantData.tool_resources.file_search.vector_store_ids[0]?.ToString();
+    }
+
+    Error("No vector store found attached to this assistant.");
+    return null;
 }
