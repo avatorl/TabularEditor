@@ -32,6 +32,21 @@ void CreateOrUpdateDaxAssistant()
     {
         apiKey = apiKeyInput;
     }
+
+    string assistantId = string.Empty;
+    // If assistantId is not provided directly, attempt to retrieve it from user environment variables
+    {
+        using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
+        {
+            if (userKey != null)
+            {
+                assistantId = userKey.GetValue("OPENAI_TE_ASSISTANT_ID") as string;
+            }
+        }
+    }
+
+    //Output(assistantId);
+
     // Set the base API URL and model to be used
     string baseUrl = "https://api.openai.com/v1";
     string model = "gpt-4o";
@@ -41,7 +56,7 @@ void CreateOrUpdateDaxAssistant()
 
     // Define the PDF file details
     string pdfFileName = "The Definitive Guide to DAX.pdf"; // Name of the PDF file
-    string pdfFileIdTheDefGuide = GetFileIdByName(client, baseUrl, apiKey, pdfFileName); // Use string pdfFileIdTheDefGuide = "" to force file uploading otherwise existing in the storage <pdfFileName> will be used instead of uploading <pdfFilePath>
+    string pdfFileIdInTheStorage = GetFileIdByName(client, baseUrl, apiKey, pdfFileName); // Use string pdfFileIdTheDefGuide = "" to force file uploading otherwise existing in the storage <pdfFileName> will be used instead of uploading <pdfFilePath>
     string pdfFilePath = @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf"; // Local file path
 
     // END OF CONFIGURATION
@@ -51,139 +66,31 @@ void CreateOrUpdateDaxAssistant()
     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
-    // Retrieve the list of existing assistants that match the "TE -" naming pattern
-    var assistants = GetExistingAssistants(client, baseUrl);
-
-    // Call the function to prompt the user to select an assistant or choose to create a new one
-    var selectedAssistant = PromptUserForAssistantSelection(assistants);
-
-    // If an existing assistant is found, prompt the user to update it
-    if (selectedAssistant != "Create New Assistant")
-    {
-        UpdateAssistant(client, selectedAssistant, baseUrl, model, instructions, pdfFileName, pdfFilePath, pdfFileIdTheDefGuide);
+    // If existing assistant found then update it
+    if (CheckAssistantExistsById(client,baseUrl,assistantId)==true)  {
+        UpdateAssistant(client, assistantId, baseUrl, model, instructions, pdfFileName, pdfFilePath, pdfFileIdInTheStorage);
     }
     // If no existing assistant is found, create a new assistant
     else
     {
-        // Ask the user to input a custom assistant name
-        string customAssistantName = PromptUserForAssistantName();
-        
-        if (!string.IsNullOrEmpty(customAssistantName))
-        {
-            CreateDaxAssistant(client, baseUrl, model, $"TE - {customAssistantName}", instructions, pdfFileName, pdfFilePath, pdfFileIdTheDefGuide);
-        }
+        CreateDaxAssistant(client, baseUrl, model, $"Assistant for Tabular Editor", instructions, pdfFileName, pdfFilePath, pdfFileIdInTheStorage);
     }
 }
 
-// Function to prompt the user to input an assistant name
-string PromptUserForAssistantName()
-{
-    // Create a form with a text box to capture user input
-    Form prompt = new Form()
-    {
-        Width = 400,
-        Height = 150,
-        Text = "Enter Assistant Name (for example, the .PBIX file name)"
-    };
-
-    Label textLabel = new Label() { Left = 50, Top = 20, Text = "Please enter the assistant name suffix:" };
-    TextBox inputBox = new TextBox() { Left = 50, Top = 50, Width = 300 };
-    Button confirmation = new Button() { Text = "OK", Left = 250, Width = 100, Top = 80, DialogResult = DialogResult.OK };
-
-    prompt.Controls.Add(textLabel);
-    prompt.Controls.Add(inputBox);
-    prompt.Controls.Add(confirmation);
-    prompt.AcceptButton = confirmation;
-
-    return prompt.ShowDialog() == DialogResult.OK ? inputBox.Text : null;
-}
-
-string PromptUserForAssistantSelection(List<Tuple<string, string>> assistants)
-{
-
-    // Create a new form
-    Form form = new Form();
-    ComboBox comboBox = new ComboBox();
-    Button submitButton = new Button();
-
-    // Set form properties
-    form.Text = "Select an Assistant";
-    form.StartPosition = FormStartPosition.CenterScreen;
-    form.FormBorderStyle = FormBorderStyle.FixedDialog;
-    form.MinimizeBox = false;
-    form.MaximizeBox = false;
-    form.ClientSize = new System.Drawing.Size(400, 80);
-
-    // Set comboBox properties
-    comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-    comboBox.SetBounds(10, 10, 300, 20);
-
-    // Populate comboBox with assistant names (display names)
-    foreach (var assistant in assistants)
-    {
-        comboBox.Items.Add(assistant.Item1); // Add only the name to the ComboBox
-    }
-
-    // Add an option to create a new assistant
-    comboBox.Items.Add("Create New Assistant");
-
-    // Set the matching assistant as the default selection
-    comboBox.SelectedIndex = comboBox.Items.IndexOf("Create New Assistant");
-
-    // Set submitButton properties
-    submitButton.Text = "OK";
-    submitButton.SetBounds(310, 10, 75, 20);
-    submitButton.DialogResult = DialogResult.OK;
-
-    // Add controls to the form
-    form.Controls.Add(comboBox);
-    form.Controls.Add(submitButton);
-    form.AcceptButton = submitButton;
-
-    // Show form as a dialog and check the result
-    if (form.ShowDialog() == DialogResult.OK)
-    {
-        if (comboBox.SelectedItem != null)
-        {
-            string selectedName = comboBox.SelectedItem.ToString();
-
-            // If "create new" is selected, return "create new"
-            if (selectedName == "Create New Assistant")
-            {
-                return "Create New Assistant";
-            }
-
-            // Find the first match for the selected name in the list of tuples
-            var selectedAssistant = assistants.FirstOrDefault(a => a.Item1 == selectedName);
-
-            if (selectedAssistant != null)
-            {
-                // Return the ID of the selected assistant (not the name)
-                return selectedAssistant.Item2; // Return the ID
-            }
-        }
-    }
-
-    // Fallback: Always return something
-    MessageBox.Show("No assistant selected. Creating a new one by default.");
-    return "create new"; // Default fallback if no selection is made
-}
-
-
-// Function to retrieve the list of existing assistants from the OpenAI API
-List<Tuple<string, string>> GetExistingAssistants(System.Net.Http.HttpClient client, string baseUrl)
+// Function to check if an assistant with a certain ID exists in the OpenAI API
+bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
 {
     try
     {
-        // Make an HTTP GET request to fetch the assistants
-        var response = client.GetAsync($"{baseUrl}/assistants").Result;
+        // Make an HTTP GET request to fetch the assistant by ID
+        var response = client.GetAsync($"{baseUrl}/assistants/{assistantId}").Result;
 
         // Check if the response was unsuccessful
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = response.Content.ReadAsStringAsync().Result;
-            Error($"Failed to retrieve assistants: {errorContent}");
-            return new List<Tuple<string, string>>(); // Return an empty list on failure
+            Error($"Failed to retrieve assistant with ID {assistantId}: {errorContent}");
+            return false; // Return false on failure
         }
 
         // Parse the response content as a string
@@ -193,45 +100,30 @@ List<Tuple<string, string>> GetExistingAssistants(System.Net.Http.HttpClient cli
         if (string.IsNullOrEmpty(responseContent))
         {
             Error("Received empty response from the API");
-            return new List<Tuple<string, string>>(); // Return an empty list on empty content
+            return false; // Return false if the response is empty
         }
 
         // Parse the response content into a JObject
         var parsedResponse = Newtonsoft.Json.Linq.JObject.Parse(responseContent);
 
-        // Ensure that the parsed response contains a "data" field
-        if (parsedResponse == null || parsedResponse["data"] == null)
+        // Ensure that the parsed response contains an "assistant" field
+        if (parsedResponse == null || parsedResponse["id"] == null)
         {
-            Error("Parsed response or 'data' field is null");
-            return new List<Tuple<string, string>>(); // Return an empty list if parsing fails
+            Error("Parsed response or 'id' field is null");
+            return false; // Return false if parsing fails
         }
 
-        // Extract the assistants array from the "data" field
-        JArray assistantsArray = (JArray)parsedResponse["data"];
+        // Extract the assistant's ID from the response
+        string retrievedId = parsedResponse["id"]?.ToString();
 
-        // Create a list to store tuples of assistant names and IDs
-        var assistantList = new List<Tuple<string, string>>();
-
-        // Iterate through each assistant and extract the name and ID
-        foreach (var assistant in assistantsArray)
-        {
-            string name = assistant["name"]?.ToString();
-            string id = assistant["id"]?.ToString();
-
-            // Add the assistant to the list if both name and ID are not empty
-            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(id))
-            {
-                assistantList.Add(new Tuple<string, string>(name, id));
-            }
-        }
-
-        return assistantList; // Return the list of assistants (name, ID)
+        // Return true if the retrieved ID matches the input ID
+        return !string.IsNullOrEmpty(retrievedId) && retrievedId == assistantId;
     }
     catch (Exception ex)
     {
-        // Log the exception and return an empty list on error
-        Error($"An exception occurred while retrieving assistants: {ex.Message}");
-        return new List<Tuple<string, string>>();
+        // Log the exception and return false on error
+        Error($"An exception occurred while checking assistant by ID: {ex.Message}");
+        return false;
     }
 }
 
