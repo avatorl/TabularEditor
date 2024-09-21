@@ -1,4 +1,4 @@
-# Open AI assistant for Tabular Editor
+# AI assistant for Tabular Editor
 
 C# scripts for Tabular Editor:
 
