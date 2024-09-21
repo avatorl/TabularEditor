@@ -54,26 +54,45 @@ void CreateOrUpdateDaxAssistant()
     // Define the instructions for the assistant
     string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context. Utilize the attached The Definitive Guide to DAX.pdf file for better understanding of DAX language.";
 
-    // Define the PDF file details
-    string pdfFileName = "The Definitive Guide to DAX.pdf"; // Name of the PDF file
-    string pdfFileIdInTheStorage = GetFileIdByName(client, baseUrl, apiKey, pdfFileName); // Use string pdfFileIdTheDefGuide = "" to force file uploading otherwise existing in the storage <pdfFileName> will be used instead of uploading <pdfFilePath>
-    string pdfFilePath = @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf"; // Local file path
+
+// Define the arrays for multiple books
+string[] pdfFileNames = {   
+    "The Definitive Guide to DAX.pdf",
+    "Power Query M Formula Language Specification (July 2019).pdf"
+};
+
+string[] pdfFilePaths = {
+    @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf",
+    @"D:\BI LIBRARY\Power Query M Formula Language Specification (July 2019).pdf"
+};
+
+// Array to store the file IDs in storage
+string[] pdfFileIdsInTheStorage = new string[pdfFileNames.Length];
+
+// Loop through the array and handle each book
+for (int i = 0; i < pdfFileNames.Length; i++)
+{
+    string pdfFileName = pdfFileNames[i];
+
+    // Get the file ID for each book and store it in the pdfFileIdsInTheStorage array
+    pdfFileIdsInTheStorage[i] = GetFileIdByName(client, baseUrl, apiKey, pdfFileName);
+
+}
 
     // END OF CONFIGURATION
 
     // Add authorization header with API key using AuthenticationHeaderValue
-    client.DefaultRequestHeaders.Authorization = 
-    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
     // If existing assistant found then update it
     if (CheckAssistantExistsById(client,baseUrl,assistantId)==true)  {
-        UpdateAssistant(client, assistantId, baseUrl, model, instructions, pdfFileName, pdfFilePath, pdfFileIdInTheStorage);
+        UpdateAssistant(client, assistantId, baseUrl, apiKey, model, instructions, pdfFileNames, pdfFilePaths, pdfFileIdsInTheStorage);
     }
     // If no existing assistant is found, create a new assistant
     else
     {
-        CreateDaxAssistant(client, baseUrl, model, $"Assistant for Tabular Editor", instructions, pdfFileName, pdfFilePath, pdfFileIdInTheStorage);
+        CreateDaxAssistant(client, baseUrl, model, $"Assistant for Tabular Editor", instructions, pdfFileNames, pdfFilePaths, pdfFileIdsInTheStorage);
     }
 }
 
@@ -128,7 +147,7 @@ bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl,
 }
 
 // Function to update an existing assistant by replacing the vector store with new data
-void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, string baseUrl, string model, string instructions, string pdfFileName, string pdfFilePath, string pdfFileId)
+void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, string baseUrl, string apiKey, string model, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
 {
     // STEP 1: Retrieve and delete the existing vector store associated with the assistant
     string vectorStoreId = GetExistingVectorStoreId(client, baseUrl, assistantId);
@@ -136,7 +155,7 @@ void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, stri
     // If there is an existing vector store, delete it along with associated files
     if (!string.IsNullOrEmpty(vectorStoreId))
     {
-        bool storeDeleted = DeleteVectorStoreAndFiles(client, baseUrl, vectorStoreId, pdfFileId);
+        bool storeDeleted = DeleteVectorStoreAndFiles(client, baseUrl, apiKey, vectorStoreId, pdfFileIds);
         if (!storeDeleted)
         {
             Error("Failed to delete the existing vector store.");
@@ -155,19 +174,28 @@ void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, stri
         return; // Exit if the file upload fails
     }
 
-    // STEP 3: Optionally upload the PDF file if a file path is provided
-    if (string.IsNullOrEmpty(pdfFileId))
-    {
-        pdfFileId = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
-        if (string.IsNullOrEmpty(pdfFileId))
+// STEP 3: Upload multiple PDF files
+for (int i = 0; i < pdfFileNames.Length; i++)
+{
+        string pdfFileName = pdfFileNames[i];
+        string pdfFilePath = pdfFilePaths[i];
+
+        if (pdfFileIds[i]=="") {
+        pdfFileIds[i] = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
+        if (string.IsNullOrEmpty(pdfFileIds[i]))
         {
             Error("Failed to upload new PDF file.");
             return; // Exit if the PDF upload fails
         }
-    }
+        }
+    
+}
+
+    // Combine dataModelFileId and pdfFileIds into a single array
+    string[] allFileIds = new[] { dataModelFileId }.Concat(pdfFileIds).ToArray();
 
     // STEP 4: Create a new vector store with the uploaded files (DataModel.json and PDF)
-    string newVectorStoreId = CreateVectorStore(client, baseUrl, new[] { dataModelFileId, pdfFileId });
+    string newVectorStoreId = CreateVectorStore(client, baseUrl, allFileIds);
     
     // Ensure the vector store creation was successful
     if (string.IsNullOrEmpty(newVectorStoreId)) return; // Exit if the vector store creation fails
@@ -209,7 +237,7 @@ void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, stri
 }
 
 // Function to delete the existing vector store and its associated files
-bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl, string vectorStoreId, string pdfFileId)
+bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl, string apiKey, string vectorStoreId, string[] pdfFileIds)
 {
     // Step 1: Check if a vector store ID is provided
     if (string.IsNullOrEmpty(vectorStoreId))
@@ -227,7 +255,7 @@ bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl
         // Step 4: Loop through the files and delete each one, except the PDF file
         foreach (var fileId in fileIds)
         {
-            if (fileId != pdfFileId) // Skip the PDF file
+            if (fileId==GetFileIdByName(client, baseUrl, apiKey, "DataModel.json")) // Skip the PDF file
             {
                 bool fileDeleted = DeleteFile(client, baseUrl, fileId);
                 if (!fileDeleted)
@@ -334,7 +362,7 @@ string GetExistingVectorStoreId(System.Net.Http.HttpClient client, string baseUr
 }
 
 // Function to create a new DAX assistant
-void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, string model, string name, string instructions, string pdfFileName, string pdfFilePath, string pdfFileId)
+void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, string model, string name, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
 {
     // STEP 1: Generate DataModel.json content
     string jsonContent = ExportModelToJsonString();
@@ -343,19 +371,25 @@ void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, strin
     string dataModelFileId = UploadFileFromMemory(client, baseUrl, jsonContent, "DataModel.json");
     if (string.IsNullOrEmpty(dataModelFileId)) return;
 
-    // STEP 3: Optionally upload the PDF file if a file path is provided
-    if (string.IsNullOrEmpty(pdfFileId))
-    {
-        pdfFileId = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
-        if (string.IsNullOrEmpty(pdfFileId))
+// STEP 3: Upload multiple PDF files
+for (int i = 0; i < pdfFileNames.Length; i++)
+{
+        string pdfFileName = pdfFileNames[i];
+        string pdfFilePath = pdfFilePaths[i];
+
+        pdfFileIds[i] = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
+        if (string.IsNullOrEmpty(pdfFileIds[i]))
         {
             Error("Failed to upload new PDF file.");
             return; // Exit if the PDF upload fails
         }
-    }
+    
+}
 
     // STEP 4: Create a vector store from the uploaded files
-    string vectorStoreId = CreateVectorStore(client, baseUrl, new[] { dataModelFileId, pdfFileId });
+    // Combine dataModelFileId and pdfFileIds into a single array
+    string[] allFileIds = new[] { dataModelFileId }.Concat(pdfFileIds).ToArray();
+    string vectorStoreId = CreateVectorStore(client, baseUrl, allFileIds);
     if (string.IsNullOrEmpty(vectorStoreId)) return;
 
     // STEP 5: Create and configure the assistant with the vector store
@@ -680,7 +714,7 @@ void SaveDataModelToFile(string jsonContent)
 string GetFileIdByName(System.Net.Http.HttpClient client, string baseUrl, string apiKey, string fileNameToFind)
 {
     // Set the authorization header
-    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
     // Make the GET request to fetch the list of files
     var response = client.GetAsync($"{baseUrl}/files").Result;
@@ -703,8 +737,7 @@ string GetFileIdByName(System.Net.Http.HttpClient client, string baseUrl, string
     }
     else
     {
-        Console.WriteLine($"Error: {response.StatusCode}, {response.ReasonPhrase}");
+        Error($"Error: {response.StatusCode}, {response.ReasonPhrase}");
         return "";
     }
 }
-
