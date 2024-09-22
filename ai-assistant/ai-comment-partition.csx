@@ -68,6 +68,7 @@ void UseDaxAssistant()
                        $"Make sure first 1-5 rows are comments briefly describing the entire query and also " +
                        $"add comment into the following M code, explaining all important code rows. " +
                        $"Make sure a comment related to a certain code row is placed right before (not after) this row. " +
+                       $"Consider other tables in the data model (precedent queries), refer to the provided DataModel.json file for context. " +
                        $"The result must be a valid M query, as would be used directly inside a query. " +
                        $"Do not use any characters to define code block start and end (such as M or ``` or json), " +
                        $"output only M code. Only output the M code (without any quote marks outside of the M code). " +
