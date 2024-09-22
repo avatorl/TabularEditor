@@ -3,16 +3,37 @@ using System;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+// CONFIGURATION =======================================
+// API base URL
+string baseUrl = "https://api.openai.com/v1";
+// OpenAI model
+string model = "gpt-4o";
+// File path to export tabular metadata as JSON file
+string filePath = @"D:\DataModel.json";
+// Define instructions for the assistant
+string instructions = "You are an assistant specialized in DAX and M languages for Tabular Editor. Your task is to comment on DAX and M code. Use the attached DataModel.json to understand the data model context. Refer to the other attached files for additional details on DAX and M languages.";
+// Define array of file names (for OpenAI storage)
+string[] pdfFileNames = {
+    "The Definitive Guide to DAX.pdf",
+    "Power Query M Formula Language Specification (July 2019).pdf"
+};
+// Define array of local file paths
+string[] pdfFilePaths = {
+    @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf",
+    @"D:\BI LIBRARY\Power Query M Formula Language Specification (July 2019).pdf"
+};
+// ======================================================
+
 // Execute the function to create or update the DAX assistant
 CreateOrUpdateDaxAssistant();
 
+/// Creates or updates the DAX assistant in OpenAI API.
 void CreateOrUpdateDaxAssistant()
 {
 
     // Initialize HttpClient for making API requests
     var client = new System.Net.Http.HttpClient();
 
-    // CONFIGURATION SECTION
     // OpenAI API key, either provided directly or fetched from the user's environment variables
     string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable
     string apiKey = string.Empty;
@@ -47,39 +68,17 @@ void CreateOrUpdateDaxAssistant()
 
     //Output(assistantId);
 
-    // Set the base API URL and model to be used
-    string baseUrl = "https://api.openai.com/v1";
-    string model = "gpt-4o";
+    // Array to store the file IDs in storage
+    string[] pdfFileIdsInTheStorage = new string[pdfFileNames.Length];
 
-    // Define the instructions for the assistant
-    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context. Utilize the other attached files for better understanding of DAX and M languages.";
+    // Loop through the array and handle each book
+    for (int i = 0; i < pdfFileNames.Length; i++)
+    {
+        string pdfFileName = pdfFileNames[i];
 
-
-// Define the arrays for multiple books
-string[] pdfFileNames = {   
-    "The Definitive Guide to DAX.pdf",
-    "Power Query M Formula Language Specification (July 2019).pdf"
-};
-
-string[] pdfFilePaths = {
-    @"D:\BI LIBRARY\+ The Definitive Guide to DAX - Marco Russo\The Definitive Guide to DAX.pdf",
-    @"D:\BI LIBRARY\Power Query M Formula Language Specification (July 2019).pdf"
-};
-
-// Array to store the file IDs in storage
-string[] pdfFileIdsInTheStorage = new string[pdfFileNames.Length];
-
-// Loop through the array and handle each book
-for (int i = 0; i < pdfFileNames.Length; i++)
-{
-    string pdfFileName = pdfFileNames[i];
-
-    // Get the file ID for each book and store it in the pdfFileIdsInTheStorage array
-    pdfFileIdsInTheStorage[i] = GetFileIdByName(client, baseUrl, apiKey, pdfFileName);
-
-}
-
-    // END OF CONFIGURATION
+        // Get the file ID for each book and store it in the pdfFileIdsInTheStorage array
+        pdfFileIdsInTheStorage[i] = GetFileIdByName(client, baseUrl, apiKey, pdfFileName);
+    }
 
     // Add authorization header with API key using AuthenticationHeaderValue
     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
@@ -146,6 +145,165 @@ bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl,
     }
 }
 
+// Function to retrieve the list of files associated with a vector store
+List<string> GetFilesForVectorStore(System.Net.Http.HttpClient client, string baseUrl, string vectorStoreId)
+{
+    // Send request to get the files in the vector store
+    var response = client.GetAsync($"{baseUrl}/vector_stores/{vectorStoreId}/files").Result;
+
+    // Handle unsuccessful response
+    if (!response.IsSuccessStatusCode)
+    {
+        var errorContent = response.Content.ReadAsStringAsync().Result;
+        Error($"Failed to retrieve files for vector store {vectorStoreId}: {errorContent}");
+        return null;
+    }
+
+    // Deserialize the response to extract file IDs
+    var filesData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(response.Content.ReadAsStringAsync().Result);
+    List<string> fileIds = new List<string>();
+
+    // Loop through the files and add their IDs to the list
+    foreach (var file in filesData["data"])
+    {
+        fileIds.Add(file["id"].ToString());
+    }
+
+    return fileIds; // Return the list of file IDs
+}
+
+// Function to delete a file from storage
+bool DeleteFile(System.Net.Http.HttpClient client, string baseUrl, string fileId)
+{
+    // Send request to delete the file
+    var deleteResponse = client.DeleteAsync($"{baseUrl}/files/{fileId}").Result;
+
+    // Handle unsuccessful deletion
+    if (!deleteResponse.IsSuccessStatusCode)
+    {
+        var errorContent = deleteResponse.Content.ReadAsStringAsync().Result;
+        Error($"Failed to delete file with ID: {fileId}, Error: {errorContent}");
+        return false;
+    }
+
+    // File deleted successfully
+    return true;
+}
+
+// Function to retrieve the vector store ID associated with an assistant
+string GetExistingVectorStoreId(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
+{
+    // Ensure there is no trailing slash in the base URL to prevent double slashes in the request URI
+    if (baseUrl.EndsWith("/"))
+    {
+        baseUrl = baseUrl.TrimEnd('/');
+    }
+
+    // Send request to retrieve the assistant's data
+    var response = client.GetAsync($"{baseUrl}/assistants/{assistantId}").Result;
+
+    // Handle unsuccessful response
+    if (!response.IsSuccessStatusCode)
+    {
+        var errorContent = response.Content.ReadAsStringAsync().Result;
+        Error($"Failed to retrieve assistant data: {errorContent}");
+        return null;
+    }
+
+    // Deserialize the response to extract the vector store ID
+    var assistantData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(response.Content.ReadAsStringAsync().Result);
+
+    // Check if there are any vector store IDs associated with the assistant
+    if (assistantData.tool_resources?.file_search?.vector_store_ids != null && assistantData.tool_resources.file_search.vector_store_ids.Count > 0)
+    {
+        // Return the first vector store ID
+        return assistantData.tool_resources.file_search.vector_store_ids[0]?.ToString();
+    }
+    else
+    {
+        Error("Vector store information not found.");
+        return null;
+    }
+}
+
+// Function to create a new DAX assistant
+void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, string model, string name, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
+{
+    // STEP 1: Generate DataModel.json content
+    string jsonContent = ExportModelToJsonString();
+
+    // Optional: save DataModel.json
+    SaveDataModelToFile(jsonContent);
+
+    // STEP 2: Upload DataModel.json to the API
+    string dataModelFileId = UploadFileFromMemory(client, baseUrl, jsonContent, "DataModel.json");
+    if (string.IsNullOrEmpty(dataModelFileId)) return;
+
+// STEP 3: Upload multiple PDF files
+for (int i = 0; i < pdfFileNames.Length; i++)
+{
+        string pdfFileName = pdfFileNames[i];
+        string pdfFilePath = pdfFilePaths[i];
+
+        pdfFileIds[i] = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
+        if (string.IsNullOrEmpty(pdfFileIds[i]))
+        {
+            Error("Failed to upload new PDF file.");
+            return; // Exit if the PDF upload fails
+        }
+    
+}
+
+    // STEP 4: Create a vector store from the uploaded files
+    // Combine dataModelFileId and pdfFileIds into a single array
+    string[] allFileIds = new[] { dataModelFileId }.Concat(pdfFileIds).ToArray();
+    string vectorStoreId = CreateVectorStore(client, baseUrl, allFileIds);
+    if (string.IsNullOrEmpty(vectorStoreId)) return;
+
+    // STEP 5: Create and configure the assistant with the vector store
+    var assistantPayload = new
+    {
+        name = name,
+        instructions = instructions,
+        model = model,
+        tools = new[] { new { type = "file_search" } },
+        tool_resources = new
+        {
+            file_search = new
+            {
+                vector_store_ids = new[] { vectorStoreId }
+            }
+        }
+    };
+
+    var assistantRequestBody = new System.Net.Http.StringContent(
+        Newtonsoft.Json.JsonConvert.SerializeObject(assistantPayload),
+        System.Text.Encoding.UTF8,
+        "application/json"
+    );
+
+    // Send the request to create the assistant
+    var assistantResponse = client.PostAsync($"{baseUrl}/assistants", assistantRequestBody).Result;
+
+    // Handle unsuccessful assistant creation
+    if (!assistantResponse.IsSuccessStatusCode)
+    {
+        var errorContent = assistantResponse.Content.ReadAsStringAsync().Result;
+        Error($"Assistant creation failed: {errorContent}");
+        return;
+    }
+
+    // Extract the assistant ID from the response and copy it to the clipboard
+    var assistantResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(assistantResponse.Content.ReadAsStringAsync().Result);
+    string assistantId = assistantResult.id.ToString();
+    System.Windows.Forms.Clipboard.SetText(assistantId);
+
+     // Set the environment variable for the current user (put assistant id into the variable)
+    Environment.SetEnvironmentVariable("OPENAI_TE_ASSISTANT_ID", assistantId, EnvironmentVariableTarget.User);
+
+    Info($"Assistant created successfully. Assistant ID: {assistantId} (copied to clipboard)");
+}
+
 // Function to update an existing assistant by replacing the vector store with new data
 void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, string baseUrl, string apiKey, string model, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
 {
@@ -165,6 +323,10 @@ void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, stri
 
     // STEP 2: Upload the new DataModel.json file generated from memory
     string jsonContent = ExportModelToJsonString(); // Generate JSON content from the model
+
+    // Optional: save DataModel.json
+    SaveDataModelToFile(jsonContent);
+
     string dataModelFileId = UploadFileFromMemory(client, baseUrl, jsonContent, "DataModel.json");
     
     // Ensure the DataModel.json file is uploaded successfully
@@ -280,162 +442,6 @@ bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl
     return true;
 }
 
-// Function to retrieve the list of files associated with a vector store
-List<string> GetFilesForVectorStore(System.Net.Http.HttpClient client, string baseUrl, string vectorStoreId)
-{
-    // Send request to get the files in the vector store
-    var response = client.GetAsync($"{baseUrl}/vector_stores/{vectorStoreId}/files").Result;
-
-    // Handle unsuccessful response
-    if (!response.IsSuccessStatusCode)
-    {
-        var errorContent = response.Content.ReadAsStringAsync().Result;
-        Error($"Failed to retrieve files for vector store {vectorStoreId}: {errorContent}");
-        return null;
-    }
-
-    // Deserialize the response to extract file IDs
-    var filesData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(response.Content.ReadAsStringAsync().Result);
-    List<string> fileIds = new List<string>();
-
-    // Loop through the files and add their IDs to the list
-    foreach (var file in filesData["data"])
-    {
-        fileIds.Add(file["id"].ToString());
-    }
-
-    return fileIds; // Return the list of file IDs
-}
-
-// Function to delete a file from storage
-bool DeleteFile(System.Net.Http.HttpClient client, string baseUrl, string fileId)
-{
-    // Send request to delete the file
-    var deleteResponse = client.DeleteAsync($"{baseUrl}/files/{fileId}").Result;
-
-    // Handle unsuccessful deletion
-    if (!deleteResponse.IsSuccessStatusCode)
-    {
-        var errorContent = deleteResponse.Content.ReadAsStringAsync().Result;
-        Error($"Failed to delete file with ID: {fileId}, Error: {errorContent}");
-        return false;
-    }
-
-    // File deleted successfully
-    return true;
-}
-
-// Function to retrieve the vector store ID associated with an assistant
-string GetExistingVectorStoreId(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
-{
-    // Ensure there is no trailing slash in the base URL to prevent double slashes in the request URI
-    if (baseUrl.EndsWith("/"))
-    {
-        baseUrl = baseUrl.TrimEnd('/');
-    }
-
-    // Send request to retrieve the assistant's data
-    var response = client.GetAsync($"{baseUrl}/assistants/{assistantId}").Result;
-
-    // Handle unsuccessful response
-    if (!response.IsSuccessStatusCode)
-    {
-        var errorContent = response.Content.ReadAsStringAsync().Result;
-        Error($"Failed to retrieve assistant data: {errorContent}");
-        return null;
-    }
-
-    // Deserialize the response to extract the vector store ID
-    var assistantData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(response.Content.ReadAsStringAsync().Result);
-
-    // Check if there are any vector store IDs associated with the assistant
-    if (assistantData.tool_resources?.file_search?.vector_store_ids != null && assistantData.tool_resources.file_search.vector_store_ids.Count > 0)
-    {
-        // Return the first vector store ID
-        return assistantData.tool_resources.file_search.vector_store_ids[0]?.ToString();
-    }
-    else
-    {
-        Error("Vector store information not found.");
-        return null;
-    }
-}
-
-// Function to create a new DAX assistant
-void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, string model, string name, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
-{
-    // STEP 1: Generate DataModel.json content
-    string jsonContent = ExportModelToJsonString();
-
-    // STEP 2: Upload DataModel.json to the API
-    string dataModelFileId = UploadFileFromMemory(client, baseUrl, jsonContent, "DataModel.json");
-    if (string.IsNullOrEmpty(dataModelFileId)) return;
-
-// STEP 3: Upload multiple PDF files
-for (int i = 0; i < pdfFileNames.Length; i++)
-{
-        string pdfFileName = pdfFileNames[i];
-        string pdfFilePath = pdfFilePaths[i];
-
-        pdfFileIds[i] = UploadFile(client, baseUrl, pdfFilePath, pdfFileName);
-        if (string.IsNullOrEmpty(pdfFileIds[i]))
-        {
-            Error("Failed to upload new PDF file.");
-            return; // Exit if the PDF upload fails
-        }
-    
-}
-
-    // STEP 4: Create a vector store from the uploaded files
-    // Combine dataModelFileId and pdfFileIds into a single array
-    string[] allFileIds = new[] { dataModelFileId }.Concat(pdfFileIds).ToArray();
-    string vectorStoreId = CreateVectorStore(client, baseUrl, allFileIds);
-    if (string.IsNullOrEmpty(vectorStoreId)) return;
-
-    // STEP 5: Create and configure the assistant with the vector store
-    var assistantPayload = new
-    {
-        name = name,
-        instructions = instructions,
-        model = model,
-        tools = new[] { new { type = "file_search" } },
-        tool_resources = new
-        {
-            file_search = new
-            {
-                vector_store_ids = new[] { vectorStoreId }
-            }
-        }
-    };
-
-    var assistantRequestBody = new System.Net.Http.StringContent(
-        Newtonsoft.Json.JsonConvert.SerializeObject(assistantPayload),
-        System.Text.Encoding.UTF8,
-        "application/json"
-    );
-
-    // Send the request to create the assistant
-    var assistantResponse = client.PostAsync($"{baseUrl}/assistants", assistantRequestBody).Result;
-
-    // Handle unsuccessful assistant creation
-    if (!assistantResponse.IsSuccessStatusCode)
-    {
-        var errorContent = assistantResponse.Content.ReadAsStringAsync().Result;
-        Error($"Assistant creation failed: {errorContent}");
-        return;
-    }
-
-    // Extract the assistant ID from the response and copy it to the clipboard
-    var assistantResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(assistantResponse.Content.ReadAsStringAsync().Result);
-    string assistantId = assistantResult.id.ToString();
-    System.Windows.Forms.Clipboard.SetText(assistantId);
-
-     // Set the environment variable for the current user (put assistant id into the variable)
-    Environment.SetEnvironmentVariable("OPENAI_TE_ASSISTANT_ID", assistantId, EnvironmentVariableTarget.User);
-
-    Info($"Assistant created successfully. Assistant ID: {assistantId} (copied to clipboard)");
-}
-
 // Function to upload a JSON file from memory to the OpenAI API storage
 string UploadFileFromMemory(System.Net.Http.HttpClient client, string baseUrl, string jsonContent, string fileName)
 {
@@ -546,7 +552,7 @@ string ExportModelToJsonString()
 {
     var modelJson = new JObject();
 
-    // Add tables to the JSON structure
+    // Add tables and calculation groups to the JSON structure
     var tables = new JArray();
     foreach (var table in Model.Tables)
     {
@@ -558,10 +564,11 @@ string ExportModelToJsonString()
         }
         else
         {
-            tables.Add(GetTableMetadata(table));
+            var tableJson = GetTableMetadata(table);
+            tables.Add(tableJson);
         }
     }
-    modelJson["Tables"] = tables;
+    modelJson["tables"] = tables;
 
     // Add relationships to the JSON structure
     var relationships = new JArray();
@@ -569,15 +576,20 @@ string ExportModelToJsonString()
     {
         var relJson = new JObject
         {
-            { "FromTable", relationship.FromTable.Name },
-            { "FromColumn", relationship.FromColumn.Name },
-            { "ToTable", relationship.ToTable.Name },
-            { "ToColumn", relationship.ToColumn.Name },
-            { "IsActive", relationship.IsActive }
+            { "name", relationship.Name },
+            { "isActive", relationship.IsActive },
+            { "crossFilteringBehavior", relationship.CrossFilteringBehavior.ToString() },
+            { "securityFilteringBehavior", relationship.SecurityFilteringBehavior.ToString() },
+            { "fromCardinality", relationship.FromCardinality.ToString() },
+            { "toCardinality", relationship.ToCardinality.ToString() },
+            { "fromColumn", relationship.FromColumn?.Name ?? "None" }, // Null check
+            { "fromTable", relationship.FromTable?.Name ?? "None" },   // Null check
+            { "toColumn", relationship.ToColumn?.Name ?? "None" },     // Null check
+            { "toTable", relationship.ToTable?.Name ?? "None" }        // Null check
         };
         relationships.Add(relJson);
     }
-    modelJson["Relationships"] = relationships;
+    modelJson["relationships"] = relationships;
 
     // Serialize the entire model to JSON with indentation for readability
     return Newtonsoft.Json.JsonConvert.SerializeObject(modelJson, Newtonsoft.Json.Formatting.Indented);
@@ -586,12 +598,23 @@ string ExportModelToJsonString()
 // Helper function to get metadata for regular tables
 JObject GetTableMetadata(Table table)
 {
+    // Check if the table is a calculated table (DAX) by checking the partition's DAX expression
+    bool isCalculatedTable = table.Partitions.Any(p => !string.IsNullOrEmpty(p.Expression) && p.SourceType == PartitionSourceType.Calculated);
+
+    // Add basic table metadata
     var tableJson = new JObject
     {
-        ["Name"] = table.Name,
-        ["Description"] = table.Description,
-        ["IsCalculatedTable"] = table.Partitions.Any(p => !string.IsNullOrEmpty(p.Expression))
+        ["name"] = table.Name,
+        ["description"] = table.Description ?? string.Empty,  // Null check
+        ["isCalculatedTable"] = isCalculatedTable // Only true for DAX-calculated tables
     };
+
+    // Add the expression for both DAX-calculated tables and M query tables
+    var partition = table.Partitions.FirstOrDefault();
+    if (partition != null)
+    {
+        tableJson["expression"] = partition.Expression ?? string.Empty; // Null check for partition expression
+    }
 
     // Add columns to the table metadata
     var columns = new JArray();
@@ -599,25 +622,30 @@ JObject GetTableMetadata(Table table)
     {
         var columnJson = new JObject
         {
-            ["Name"] = column.Name,
-            ["DataType"] = column.DataType.ToString(),
-            ["IsHidden"] = column.IsHidden,
-            ["FormatString"] = column.FormatString
+            ["name"] = column.Name,
+            ["dataType"] = column.DataType.ToString(),
+            ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized", // Null check
+            ["description"] = column.Description ?? string.Empty,  // Null check
+            ["isHidden"] = column.IsHidden,
+            ["formatString"] = column.FormatString ?? string.Empty, // Null check
+            ["displayFolder"] = column.DisplayFolder ?? string.Empty, // Null check
+            ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None" // Null check
         };
 
-        // Add expression if it is a calculated column
+        // Add calculated column metadata
         if (column is CalculatedColumn calculatedColumn)
         {
-            columnJson["IsCalculatedColumn"] = true;
-            columnJson["Expression"] = calculatedColumn.Expression;
+            columnJson["isCalculatedColumn"] = true;
+            columnJson["expression"] = calculatedColumn.Expression;
+            columnJson["formatString"] = calculatedColumn.FormatString ?? string.Empty; // Null check
         }
         else
         {
-            columnJson["IsCalculatedColumn"] = false;
+            columnJson["isCalculatedColumn"] = false;
         }
         columns.Add(columnJson);
     }
-    tableJson["Columns"] = columns;
+    tableJson["columns"] = columns;
 
     // Add measures to the table metadata
     var measures = new JArray();
@@ -625,14 +653,16 @@ JObject GetTableMetadata(Table table)
     {
         var measureJson = new JObject
         {
-            ["Name"] = measure.Name,
-            ["Expression"] = measure.Expression,
-            ["FormatString"] = measure.FormatString,
-            ["IsHidden"] = measure.IsHidden
+            ["name"] = measure.Name,
+            ["description"] = measure.Description ?? string.Empty, // Null check
+            ["expression"] = measure.Expression,
+            ["formatString"] = measure.FormatString ?? string.Empty, // Null check
+            ["isHidden"] = measure.IsHidden,
+            ["displayFolder"] = measure.DisplayFolder ?? string.Empty // Null check
         };
         measures.Add(measureJson);
     }
-    tableJson["Measures"] = measures;
+    tableJson["measures"] = measures;
 
     return tableJson;
 }
@@ -642,8 +672,8 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
 {
     var calcGroupJson = new JObject
     {
-        ["Name"] = calcGroupTable.Name,
-        ["Description"] = calcGroupTable.Description
+        ["name"] = calcGroupTable.Name,
+        ["description"] = calcGroupTable.Description ?? string.Empty // Null check
     };
 
     // Add calculation items to the calculation group metadata
@@ -652,25 +682,29 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
     {
         var itemJson = new JObject
         {
-            ["Name"] = item.Name,
-            ["Expression"] = item.Expression
+            ["name"] = item.Name,
+            ["expression"] = item.Expression
         };
         calcItems.Add(itemJson);
     }
-    calcGroupJson["CalculationItems"] = calcItems;
+    calcGroupJson["calculationItems"] = calcItems;
 
-    // Add measures to the calculation group
+    // Add measures to the calculation group metadata
     var calcGroupMeasures = new JArray();
     foreach (var measure in calcGroupTable.Measures)
     {
         var measureJson = new JObject
         {
-            ["Name"] = measure.Name,
-            ["Expression"] = measure.Expression
+            ["name"] = measure.Name,
+            ["description"] = measure.Description ?? string.Empty, // Null check
+            ["expression"] = measure.Expression,
+            ["formatString"] = measure.FormatString ?? string.Empty, // Null check
+            ["isHidden"] = measure.IsHidden,
+            ["displayFolder"] = measure.DisplayFolder ?? string.Empty // Null check
         };
         calcGroupMeasures.Add(measureJson);
     }
-    calcGroupJson["Measures"] = calcGroupMeasures;
+    calcGroupJson["measures"] = calcGroupMeasures;
 
     // Add calculated columns to the calculation group
     var calcColumns = new JArray();
@@ -680,16 +714,19 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
         {
             var columnJson = new JObject
             {
-                ["Name"] = calculatedColumn.Name,
-                ["Expression"] = calculatedColumn.Expression,
-                ["DataType"] = calculatedColumn.DataType.ToString(),
-                ["IsHidden"] = calculatedColumn.IsHidden,
-                ["FormatString"] = calculatedColumn.FormatString
+                ["name"] = column.Name,
+                ["dataType"] = column.DataType.ToString(),
+                ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized", // Null check
+                ["description"] = column.Description ?? string.Empty, // Null check
+                ["isHidden"] = column.IsHidden,
+                ["formatString"] = column.FormatString ?? string.Empty, // Null check
+                ["displayFolder"] = column.DisplayFolder ?? string.Empty, // Null check
+                ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None" // Null check
             };
             calcColumns.Add(columnJson);
         }
     }
-    calcGroupJson["CalculatedColumns"] = calcColumns;
+    calcGroupJson["calculatedColumns"] = calcColumns;
 
     return calcGroupJson;
 }
@@ -697,8 +734,6 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
 // Optional function to save the DataModel.json to disk
 void SaveDataModelToFile(string jsonContent)
 {
-    string filePath = @"D:\DataModel.json"; // Update the path as needed
-
     try
     {
         // Write the JSON content to the file
