@@ -52,7 +52,7 @@ void CreateOrUpdateDaxAssistant()
     string model = "gpt-4o";
 
     // Define the instructions for the assistant
-    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context. Utilize the attached The Definitive Guide to DAX.pdf file for better understanding of DAX language.";
+    string instructions = "You are a DAX assistant for Tabular Editor. Your tasks include commenting, optimizing, and suggesting DAX code. Utilize the attached DataModel.json file to understand the data model context. Utilize the other attached files for better understanding of DAX and M languages.";
 
 
 // Define the arrays for multiple books
