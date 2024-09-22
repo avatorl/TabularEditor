@@ -233,7 +233,7 @@ if (Selected.Partition != null)
         //Output(updatedMQuery);
 
         JObject parsedJson = JObject.Parse(updatedMQuery);
-        Selected.Partition.Expression = parsedJson["query"].ToString();;
+        Selected.Partition.Expression = parsedJson["query"].ToString();
     }
 }
 
