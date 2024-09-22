@@ -52,18 +52,6 @@ void UseDaxAssistant()
     int maxAttempts = 10; // Maximum number of attempts to poll the run status
     // --- END OF CONFIGURATION ---
 
-//    // Step 1: Check if a measure is selected
-//    var selectedMeasure = Selected.Measures.FirstOrDefault();
-//    if (selectedMeasure == null)
-//    {
-//        Error("No measure is selected. Please select a measure.");
-//        return; // Exit if no measure is selected
-//    }
-//
-//    // Step 2: Extract the measure's name and DAX expression
-//    string measureName = selectedMeasure.Name;
-//    string measureExpression = selectedMeasure.Expression;
-
 var mCode="";
 if (Selected.Partition != null)
 {
@@ -71,27 +59,9 @@ if (Selected.Partition != null)
 
     mCode = Selected.Partition.Expression;
 }
-//    //var mPartitionSource = partition.Ex as MPartitionSource;
-//    if (mPartitionSource != null)
-//    {
-//        // Retrieve the M code
-//        var mCode = mPartitionSource.Expression;
-//        // Output the M code to the console or use it as needed
-//        Output(mCode);
-//    }
-//    else
-//    {
-//        Error("The selected partition does not use an M expression as its source.");
-//    }
-//}
-//else
-//{
-//    Error("No partition is selected. Please select a partition and try again.");
-//}
-//
 
     // Step 3: Define the user's query for the assistant
-    string userQuery = $"Please add comments to the following M query. Use '//' to define comment row. Make sure first 1-5 rows are comments briefly describing the entire query and also add comment into the following M code, explaining all important code rows. The result must be a valid M query, as would be used directly inside a query. Do not use any characters to define code block start and end (such as M or ``` or json), output only M code. Only output the M code (without any quote marks outside of the M code). Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, without changing the original M code (other than adding comments). Mandatory output format: {{\"query\":\"<put M query code here>\"}}. There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nQuery Code: {mCode}";
+    string userQuery = $"Please add comments to the following M query. Use '//' to define comment row. Make sure first 1-5 rows are comments briefly describing the entire query and also add comment into the following M code, explaining all important code rows. Make sure a comment related to a certain code row is placed right beofre (not after) this row. The result must be a valid M query, as would be used directly inside a query. Do not use any characters to define code block start and end (such as M or ``` or json), output only M code. Only output the M code (without any quote marks outside of the M code). Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, without changing the original M code (other than adding comments). Mandatory output format: {{\"query\":\"<put M query code here>\"}}. There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nQuery Code: {mCode}";
 
     // Step 4: Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
@@ -230,7 +200,7 @@ if (Selected.Partition != null)
             return;
         }
 
-        //Output(updatedMQuery);
+        Output(updatedMQuery);
 
         JObject parsedJson = JObject.Parse(updatedMQuery);
         Selected.Partition.Expression = parsedJson["query"].ToString();
