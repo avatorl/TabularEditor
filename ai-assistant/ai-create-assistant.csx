@@ -11,7 +11,8 @@ string model = "gpt-4o";
 // File path to export tabular metadata as JSON file
 string filePath = @"D:\DataModel.json";
 // Define instructions for the assistant
-string instructions = "You are an assistant specialized in DAX and M languages for Tabular Editor. Your task is to comment on DAX and M code. Use the attached DataModel.json to understand the data model context. Refer to the other attached files for additional details on DAX and M languages.";
+string instructions = "You are an assistant specialized in DAX and M languages for Tabular Editor. Your task is to comment on DAX and M code. " +
+                      "Use the attached DataModel.json to understand the data model context. Refer to the other attached files for additional details on DAX and M languages.";
 // Define array of file names (for OpenAI storage)
 string[] pdfFileNames = {
     "The Definitive Guide to DAX.pdf",
