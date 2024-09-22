@@ -65,7 +65,17 @@ void UseDaxAssistant()
     string measureExpression = selectedMeasure.Expression;
 
     // Step 3: Define the user's query for the assistant
-    string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. Make sure first 1-5 rows are comments briefly describing the entire measure (measure description) and also add comment into the following DAX code, explaining all important code rows. The result must be a valid DAX measure expression, as would be used directly inside a measure definition. Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. Only output the DAX code (without any quote marks outside of the measure code). Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, without changing the original DAX code (other than adding comments). Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
+    string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. " +
+                       $"Make sure first 1-5 rows are comments briefly describing the entire measure (measure description) and " +
+                       $"also add comment into the following DAX code, explaining all important code rows. " +
+                       $"The result must be a valid DAX measure expression, as would be used directly inside a measure definition. " +
+                       $"Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. " +
+                       $"Only output the DAX code (without any quote marks outside of the measure code). " + 
+                       $"Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. " +
+                       $"Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, " +
+                       $"without changing the original DAX code (other than adding comments). " +
+                       $"Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. " +
+                       $"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
 
     // Step 4: Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
