@@ -66,7 +66,6 @@ void UseDaxAssistant()
 
     // Step 3: Define the user's query for the assistant
     string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. " +
-                       $"If the previous row is not a comment, then add a blank comment line starting with '//', before adding your comment." +
                        $"Endsure first few rows (up to 5) are comments that briefly describe the entire measure (measure description). " +
                        $"Additionaly, add comment into the following DAX code, explaining all important code rows. " +
                        $"The result must be a valid DAX measure expression, as would be used directly inside a measure definition. " +
