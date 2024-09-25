@@ -74,9 +74,9 @@ void UseDaxAssistant()
                        $"Ensure the output DAX code excludes the measure name and equal sign ('='), containing only the commented measure logic and no other comments outside of the measure code. " +
                        $"Consider the entire data model (refer to the provided DataModel.json file) for context. " +
                        $"Analyze the referred tables and columns, as well as precedent and dependent measures, to gain a deeper understanding of this measure. " +
-                       $"Ensure that you only add or edit existing comments, " +
-                       $"without altering the original DAX code (other than by adding comments). " +
-                       $"Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. " +
+                       $"Ensure that you only add new comments or edit existing comments, " +
+                       $"without altering the original DAX code (other than by adding/editing comments). " +
+                       $"Mandatory output format: {{\"expression\":\"<put measure DAX expression here (and only here)>\",\"description\":\"<put measure description here>\"}}. " +
                        $"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
 
     // Step 4: Create an HttpClient instance for making API requests
@@ -241,6 +241,7 @@ void UseDaxAssistant()
             selectedMeasure.Expression = parsedJson["expression"].ToString();
             selectedMeasure.Description = parsedJson["description"].ToString();
             selectedMeasure.FormatDax(); // Format the measure for better readability
+            Info(parsedJson["comment"].ToString());
         }
         catch
         {
