@@ -49,7 +49,7 @@ void UseDaxAssistant()
     }
 
     string baseUrl = "https://api.openai.com/v1"; // Base API URL
-    int maxAttempts = 10; // Maximum number of attempts to poll the run status
+    int maxAttempts = 15; // Maximum number of attempts to poll the run status
     // --- END OF CONFIGURATION ---
 
     // Step 1: Check if a measure is selected
@@ -66,14 +66,17 @@ void UseDaxAssistant()
 
     // Step 3: Define the user's query for the assistant
     string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. " +
-                       $"Make sure first 1-5 rows are comments briefly describing the entire measure (measure description) and " +
-                       $"also add comment into the following DAX code, explaining all important code rows. " +
+                       $"If the previous row is not a comment, then add a blank comment line starting with '//', before adding your comment." +
+                       $"Endsure first few rows (up to 5) are comments that briefly describe the entire measure (measure description). " +
+                       $"Additionaly, add comment into the following DAX code, explaining all important code rows. " +
                        $"The result must be a valid DAX measure expression, as would be used directly inside a measure definition. " +
                        $"Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. " +
                        $"Only output the DAX code (without any quote marks outside of the measure code). " + 
-                       $"Ensure the output DAX code excludes the measure name and equal sign (=), containing only the commented measure logic and no other comments outside of the measure code. " +
-                       $"Consider the entire data model (refer to the provided DataModel.json file) for context. Verify that you only added or edited existing comments, " +
-                       $"without changing the original DAX code (other than adding comments). " +
+                       $"Ensure the output DAX code excludes the measure name and equal sign ('='), containing only the commented measure logic and no other comments outside of the measure code. " +
+                       $"Consider the entire data model (refer to the provided DataModel.json file) for context. " +
+                       $"Analyze the referred tables and columns, as well as precedent and dependent measures, to gain a deeper understanding of this measure. " +
+                       $"Ensure that you only add or edit existing comments, " +
+                       $"without altering the original DAX code (other than by adding comments). " +
                        $"Mandatory output format: {{\"expression\":\"<put measure DAX expression here>\",\"description\":\"<put measure description here>\"}}. " +
                        $"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
 
@@ -127,6 +130,8 @@ void UseDaxAssistant()
             content = userQuery
         };
 
+        //Output(userQuery);
+
         var messageRequestBody = new System.Net.Http.StringContent(
             Newtonsoft.Json.JsonConvert.SerializeObject(messagePayload),
             System.Text.Encoding.UTF8,
@@ -161,10 +166,10 @@ void UseDaxAssistant()
 
         // Step 10: Poll the run status until it's completed or failed
         int attempts = 1;
-        while (runStatus != "completed" && runStatus != "failed" && attempts < maxAttempts)
+        while (runStatus != "completed  " && runStatus != "failed" && attempts <= maxAttempts)
         {
             attempts++;
-            System.Threading.Thread.Sleep(3000); // Wait 3 seconds before polling again
+            System.Threading.Thread.Sleep(1000); // Wait 1 second before polling again
             var runStatusResponse = client.GetAsync($"{baseUrl}/threads/{threadId}/runs/{runId}").Result;
 
             if (!runStatusResponse.IsSuccessStatusCode)
@@ -173,14 +178,20 @@ void UseDaxAssistant()
                 return;
             }
 
-            var runStatusResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(runStatusResponse.Content.ReadAsStringAsync().Result);
-            runStatus = runStatusResult.status.ToString();
+            runResult = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(runStatusResponse.Content.ReadAsStringAsync().Result);
+            runStatus = runResult.status.ToString();
         }
 
         // Step 11: Check if the assistant run failed or timed out
-        if (runStatus == "failed" || attempts >= maxAttempts)
+        if (runStatus != "completed")
         {
-            Error("Operation failed or timed out.");
+            Error($"Error: {runResult.last_error.ToString()}");
+            Output(runResult);
+            return;
+        }
+        else if (attempts > maxAttempts)
+        {
+            Error("Operation timed out after reaching maximum attempts");
             return;
         }
 
