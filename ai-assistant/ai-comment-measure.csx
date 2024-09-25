@@ -49,7 +49,7 @@ void UseDaxAssistant()
     }
 
     string baseUrl = "https://api.openai.com/v1"; // Base API URL
-    int maxAttempts = 15; // Maximum number of attempts to poll the run status
+    int maxAttempts = 30; // Maximum number of attempts to poll the run status
     // --- END OF CONFIGURATION ---
 
     // Step 1: Check if a measure is selected
@@ -166,7 +166,7 @@ void UseDaxAssistant()
 
         // Step 10: Poll the run status until it's completed or failed
         int attempts = 1;
-        while (runStatus != "completed  " && runStatus != "failed" && attempts <= maxAttempts)
+        while (runStatus != "completed" && runStatus != "failed" && attempts <= maxAttempts)
         {
             attempts++;
             System.Threading.Thread.Sleep(1000); // Wait 1 second before polling again
@@ -192,6 +192,7 @@ void UseDaxAssistant()
         else if (attempts > maxAttempts)
         {
             Error("Operation timed out after reaching maximum attempts");
+            Output(runResult);
             return;
         }
 
