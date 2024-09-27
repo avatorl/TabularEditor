@@ -1,7 +1,8 @@
+// ======================================================================================================================================================================
 // This Tabular Editor C# script is designed to automate the setup of a dedicated measures table in a data model, specifically the _Measures table, 
 //  and organize measures into predefined display folders (also known as display groups).
-// © Andrzej Leszkiewicz
-// https://www.linkedin.com/in/avatorl/
+// © Andrzej Leszkiewicz https://www.linkedin.com/in/avatorl/
+// ======================================================================================================================================================================
 
 // List of display folders to create
 var displayFolders = new List<string> {
