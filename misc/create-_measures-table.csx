@@ -7,7 +7,8 @@
 // List of display folders to create
 var displayFolders = new List<string> {
     "00 Main Metrics",
-    "10 Other Calculations",
+    "10 Counters",
+    "20 Other Calculations",
     "70 Titles and Labels",
     "80 Filters",
     "90 Other Measures"
