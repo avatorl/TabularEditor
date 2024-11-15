@@ -2,6 +2,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using System.Collections.Generic;
 
 // CONFIGURATION =======================================
 // API base URL
@@ -572,6 +573,15 @@ string ExportModelToJsonString()
     modelJson["tables"] = tables;
 
     // Add relationships to the JSON structure
+    modelJson["relationships"] = GetRelationshipsMetadata();
+
+    // Serialize the entire model to JSON with indentation for readability
+    return Newtonsoft.Json.JsonConvert.SerializeObject(modelJson, Newtonsoft.Json.Formatting.Indented);
+}
+
+// Helper function to get metadata for relationships
+JArray GetRelationshipsMetadata()
+{
     var relationships = new JArray();
     foreach (var relationship in Model.Relationships)
     {
@@ -583,17 +593,14 @@ string ExportModelToJsonString()
             { "securityFilteringBehavior", relationship.SecurityFilteringBehavior.ToString() },
             { "fromCardinality", relationship.FromCardinality.ToString() },
             { "toCardinality", relationship.ToCardinality.ToString() },
-            { "fromColumn", relationship.FromColumn?.Name ?? "None" }, // Null check
-            { "fromTable", relationship.FromTable?.Name ?? "None" },   // Null check
-            { "toColumn", relationship.ToColumn?.Name ?? "None" },     // Null check
-            { "toTable", relationship.ToTable?.Name ?? "None" }        // Null check
+            { "fromColumn", relationship.FromColumn?.Name ?? "None" },
+            { "fromTable", relationship.FromTable?.Name ?? "None" },
+            { "toColumn", relationship.ToColumn?.Name ?? "None" },
+            { "toTable", relationship.ToTable?.Name ?? "None" }
         };
         relationships.Add(relJson);
     }
-    modelJson["relationships"] = relationships;
-
-    // Serialize the entire model to JSON with indentation for readability
-    return Newtonsoft.Json.JsonConvert.SerializeObject(modelJson, Newtonsoft.Json.Formatting.Indented);
+    return relationships;
 }
 
 // Helper function to get metadata for regular tables
@@ -606,15 +613,15 @@ JObject GetTableMetadata(Table table)
     var tableJson = new JObject
     {
         ["name"] = table.Name,
-        ["description"] = table.Description ?? string.Empty,  // Null check
-        ["isCalculatedTable"] = isCalculatedTable // Only true for DAX-calculated tables
+        ["description"] = table.Description ?? string.Empty,
+        ["isCalculatedTable"] = isCalculatedTable
     };
 
     // Add the expression for both DAX-calculated tables and M query tables
     var partition = table.Partitions.FirstOrDefault();
     if (partition != null)
     {
-        tableJson["expression"] = partition.Expression ?? string.Empty; // Null check for partition expression
+        tableJson["expression"] = partition.Expression ?? string.Empty;
     }
 
     // Add columns to the table metadata
@@ -625,12 +632,12 @@ JObject GetTableMetadata(Table table)
         {
             ["name"] = column.Name,
             ["dataType"] = column.DataType.ToString(),
-            ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized", // Null check
-            ["description"] = column.Description ?? string.Empty,  // Null check
+            ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized",
+            ["description"] = column.Description ?? string.Empty,
             ["isHidden"] = column.IsHidden,
-            ["formatString"] = column.FormatString ?? string.Empty, // Null check
-            ["displayFolder"] = column.DisplayFolder ?? string.Empty, // Null check
-            ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None" // Null check
+            ["formatString"] = column.FormatString ?? string.Empty,
+            ["displayFolder"] = column.DisplayFolder ?? string.Empty,
+            ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None"
         };
 
         // Add calculated column metadata
@@ -638,7 +645,7 @@ JObject GetTableMetadata(Table table)
         {
             columnJson["isCalculatedColumn"] = true;
             columnJson["expression"] = calculatedColumn.Expression;
-            columnJson["formatString"] = calculatedColumn.FormatString ?? string.Empty; // Null check
+            columnJson["formatString"] = calculatedColumn.FormatString ?? string.Empty;
         }
         else
         {
@@ -655,11 +662,11 @@ JObject GetTableMetadata(Table table)
         var measureJson = new JObject
         {
             ["name"] = measure.Name,
-            ["description"] = measure.Description ?? string.Empty, // Null check
+            ["description"] = measure.Description ?? string.Empty,
             ["expression"] = measure.Expression,
-            ["formatString"] = measure.FormatString ?? string.Empty, // Null check
+            ["formatString"] = measure.FormatString ?? string.Empty,
             ["isHidden"] = measure.IsHidden,
-            ["displayFolder"] = measure.DisplayFolder ?? string.Empty // Null check
+            ["displayFolder"] = measure.DisplayFolder ?? string.Empty
         };
         measures.Add(measureJson);
     }
@@ -674,7 +681,7 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
     var calcGroupJson = new JObject
     {
         ["name"] = calcGroupTable.Name,
-        ["description"] = calcGroupTable.Description ?? string.Empty // Null check
+        ["description"] = calcGroupTable.Description ?? string.Empty
     };
 
     // Add calculation items to the calculation group metadata
@@ -697,11 +704,11 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
         var measureJson = new JObject
         {
             ["name"] = measure.Name,
-            ["description"] = measure.Description ?? string.Empty, // Null check
+            ["description"] = measure.Description ?? string.Empty,
             ["expression"] = measure.Expression,
-            ["formatString"] = measure.FormatString ?? string.Empty, // Null check
+            ["formatString"] = measure.FormatString ?? string.Empty,
             ["isHidden"] = measure.IsHidden,
-            ["displayFolder"] = measure.DisplayFolder ?? string.Empty // Null check
+            ["displayFolder"] = measure.DisplayFolder ?? string.Empty
         };
         calcGroupMeasures.Add(measureJson);
     }
@@ -717,12 +724,12 @@ JObject GetCalculationGroupMetadata(CalculationGroupTable calcGroupTable)
             {
                 ["name"] = column.Name,
                 ["dataType"] = column.DataType.ToString(),
-                ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized", // Null check
-                ["description"] = column.Description ?? string.Empty, // Null check
+                ["dataCategory"] = column.DataCategory?.ToString() ?? "Uncategorized",
+                ["description"] = column.Description ?? string.Empty,
                 ["isHidden"] = column.IsHidden,
-                ["formatString"] = column.FormatString ?? string.Empty, // Null check
-                ["displayFolder"] = column.DisplayFolder ?? string.Empty, // Null check
-                ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None" // Null check
+                ["formatString"] = column.FormatString ?? string.Empty,
+                ["displayFolder"] = column.DisplayFolder ?? string.Empty,
+                ["sortByColumn"] = column.SortByColumn != null ? column.SortByColumn.Name : "None"
             };
             calcColumns.Add(columnJson);
         }
