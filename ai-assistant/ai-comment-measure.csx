@@ -186,7 +186,7 @@ var responseFormat = new
             assistant_id = assistantId,
             model = model,
             temperature = temperature,
-            tools = new object[] {},
+            tools = new object[] {}, //https://community.openai.com/t/structured-outputs-dont-currently-work-with-file-search-tool-in-assistants-api/900538/19
             response_format = responseFormat     
         };
         var runRequestBody = new System.Net.Http.StringContent(
