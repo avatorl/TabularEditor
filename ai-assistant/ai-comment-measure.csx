@@ -11,8 +11,17 @@ UseDaxAssistant(); // Initiates the process of interacting with the AI assistant
 void UseDaxAssistant()
 {
     // --- CONFIGURATION SECTION ---
+
+    string baseUrl = "https://api.openai.com/v1"; // Base API URL
+    int maxAttempts = 30; // Maximum number of attempts to poll the run status
+    double temperature = 0.4;
+    string model = "gpt-4o-mini";
+    string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable "OPENAI_TE_API_KEY"
+
+    // --- END OF CONFIGURATION ---
+
     // OpenAI API key, either provided directly or fetched from the user's environment variables
-    string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable
+    
     string apiKey = string.Empty;
 
     // If API key is not provided directly, attempt to retrieve it from user environment variables
@@ -48,10 +57,6 @@ void UseDaxAssistant()
         assistantId = assistantIdInput;
     }
 
-    string baseUrl = "https://api.openai.com/v1"; // Base API URL
-    int maxAttempts = 30; // Maximum number of attempts to poll the run status
-    // --- END OF CONFIGURATION ---
-
     // Step 1: Check if a measure is selected
     var selectedMeasure = Selected.Measures.FirstOrDefault();
     if (selectedMeasure == null)
@@ -76,8 +81,40 @@ void UseDaxAssistant()
                        $"Analyze the referred tables and columns, as well as precedent and dependent measures, to gain a deeper understanding of this measure. " +
                        $"Ensure that you only add new comments or edit existing comments, " +
                        $"without altering the original DAX code (other than by adding/editing comments). " +
-                       $"Mandatory output format: {{\"expression\":\"<put measure DAX expression here (and only here)>\",\"description\":\"<put measure description here>\"}}. " +
-                       $"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
+                       //$"Mandatory output format: {{\"expression\":\"<put measure DAX expression here (and only here)>\",\"description\":\"<put measure description here>\"}}. " +
+                       //$"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
+                       $"Measure Expression: {measureExpression}";
+
+// Create the response format object using anonymous types
+var responseFormat = new
+{
+    type = "json_schema",
+    json_schema = new
+    {
+        name = "response_json_schema",
+        description = "JSON format of the response",
+        strict = true,
+        schema = new
+        {
+            type = "object",
+            properties = new
+            {
+                expression = new
+                {
+                    type = "string",
+                    description = "put measure DAX expression here"
+                },
+                description = new
+                {
+                    type = "string",
+                    description = "put measure description here"
+                }
+            },
+            required = new string[] { "expression", "description" },
+            additionalProperties = false
+        }
+    }
+};
 
     // Step 4: Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
@@ -145,7 +182,13 @@ void UseDaxAssistant()
         }
 
         // Step 9: Run the assistant using the thread and assistant ID
-        var runPayload = new { assistant_id = assistantId };
+        var runPayload = new { 
+            assistant_id = assistantId,
+            model = model,
+            temperature = temperature,
+            tools = new object[] {},
+            response_format = responseFormat     
+        };
         var runRequestBody = new System.Net.Http.StringContent(
             Newtonsoft.Json.JsonConvert.SerializeObject(runPayload),
             System.Text.Encoding.UTF8,
@@ -241,7 +284,6 @@ void UseDaxAssistant()
             selectedMeasure.Expression = parsedJson["expression"].ToString();
             selectedMeasure.Description = parsedJson["description"].ToString();
             selectedMeasure.FormatDax(); // Format the measure for better readability
-            Info(parsedJson["comment"].ToString());
         }
         catch
         {
