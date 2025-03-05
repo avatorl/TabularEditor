@@ -3,6 +3,16 @@ using System;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Headers;
+
+// ================================================================================================
+// This is a C# script for Tabular Editor 3 (https://tabulareditor.com/).
+// This script interacts with the OpenAI assistant API (https://platform.openai.com/docs/assistants/overview).
+// It creates a new Open AI Assistant, uploads PDF files and JSON file with data model structure described.
+//
+// Author: Andrzej Leszkiewicz (https://github.com/avatorl/).
+// ================================================================================================
 
 // CONFIGURATION =======================================
 // API base URL
@@ -29,7 +39,9 @@ string[] pdfFilePaths = {
 // Execute the function to create or update the DAX assistant
 CreateOrUpdateDaxAssistant();
 
-/// Creates or updates the DAX assistant in OpenAI API.
+// ================================================================================================
+// Creates or updates the DAX assistant in OpenAI API.
+// ================================================================================================
 void CreateOrUpdateDaxAssistant()
 {
 
@@ -40,7 +52,7 @@ void CreateOrUpdateDaxAssistant()
     string apiKeyInput = ""; // Your OpenAI API key, or leave blank to use environment variable
     string apiKey = string.Empty;
 
-    // If API key is not provided directly, attempt to retrieve it from user environment variables
+    // If API key is not provided directly, attempt to retrieve it from registry
     if (string.IsNullOrEmpty(apiKeyInput))
     {
         using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
@@ -57,7 +69,7 @@ void CreateOrUpdateDaxAssistant()
     }
 
     string assistantId = string.Empty;
-    // If assistantId is not provided directly, attempt to retrieve it from user environment variables
+    // If assistantId is not provided directly, attempt to retrieve it from registry
     {
         using (RegistryKey userKey = Registry.CurrentUser.OpenSubKey(@"Environment"))
         {
@@ -97,7 +109,9 @@ void CreateOrUpdateDaxAssistant()
     }
 }
 
+// ================================================================================================
 // Function to check if an assistant with a certain ID exists in the OpenAI API
+// ================================================================================================
 bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
 {
     try
@@ -147,7 +161,9 @@ bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl,
     }
 }
 
+// ================================================================================================
 // Function to retrieve the list of files associated with a vector store
+// ================================================================================================
 List<string> GetFilesForVectorStore(System.Net.Http.HttpClient client, string baseUrl, string vectorStoreId)
 {
     // Send request to get the files in the vector store
@@ -174,7 +190,9 @@ List<string> GetFilesForVectorStore(System.Net.Http.HttpClient client, string ba
     return fileIds; // Return the list of file IDs
 }
 
+// ================================================================================================
 // Function to delete a file from storage
+// ================================================================================================
 bool DeleteFile(System.Net.Http.HttpClient client, string baseUrl, string fileId)
 {
     // Send request to delete the file
@@ -192,7 +210,9 @@ bool DeleteFile(System.Net.Http.HttpClient client, string baseUrl, string fileId
     return true;
 }
 
+// ================================================================================================
 // Function to retrieve the vector store ID associated with an assistant
+// ================================================================================================
 string GetExistingVectorStoreId(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
 {
     // Ensure there is no trailing slash in the base URL to prevent double slashes in the request URI
@@ -228,7 +248,9 @@ string GetExistingVectorStoreId(System.Net.Http.HttpClient client, string baseUr
     }
 }
 
+// ================================================================================================
 // Function to create a new DAX assistant
+// ================================================================================================
 void CreateDaxAssistant(System.Net.Http.HttpClient client, string baseUrl, string model, string name, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
 {
     // STEP 1: Generate DataModel.json content
@@ -306,7 +328,9 @@ for (int i = 0; i < pdfFileNames.Length; i++)
     Info($"Assistant created successfully. Assistant ID: {assistantId} (copied to clipboard)");
 }
 
+// ================================================================================================
 // Function to update an existing assistant by replacing the vector store with new data
+// ================================================================================================
 void UpdateAssistant(System.Net.Http.HttpClient client, string assistantId, string baseUrl, string apiKey, string model, string instructions, string[] pdfFileNames, string[] pdfFilePaths, string[] pdfFileIds)
 {
     // STEP 1: Retrieve and delete the existing vector store associated with the assistant
@@ -400,7 +424,9 @@ for (int i = 0; i < pdfFileNames.Length; i++)
     }
 }
 
+// ================================================================================================
 // Function to delete the existing vector store and its associated files
+// ================================================================================================
 bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl, string apiKey, string vectorStoreId, string[] pdfFileIds)
 {
     // Step 1: Check if a vector store ID is provided
@@ -444,7 +470,9 @@ bool DeleteVectorStoreAndFiles(System.Net.Http.HttpClient client, string baseUrl
     return true;
 }
 
+// ================================================================================================
 // Function to upload a JSON file from memory to the OpenAI API storage
+// ================================================================================================
 string UploadFileFromMemory(System.Net.Http.HttpClient client, string baseUrl, string jsonContent, string fileName)
 {
     try
@@ -480,7 +508,9 @@ string UploadFileFromMemory(System.Net.Http.HttpClient client, string baseUrl, s
     }
 }
 
+// ================================================================================================
 // Function to upload a file from the file system to the OpenAI API storage
+// ================================================================================================
 string UploadFile(System.Net.Http.HttpClient client, string baseUrl, string filePath, string fileName)
 {
     try
@@ -516,7 +546,9 @@ string UploadFile(System.Net.Http.HttpClient client, string baseUrl, string file
     }
 }
 
+// ================================================================================================
 // Function to create a vector store in the OpenAI API, which contains file references
+// ================================================================================================
 string CreateVectorStore(System.Net.Http.HttpClient client, string baseUrl, string[] fileIds)
 {
     // Create the payload with file IDs to be included in the vector store
@@ -549,7 +581,9 @@ string CreateVectorStore(System.Net.Http.HttpClient client, string baseUrl, stri
     return vectorStoreResult.id.ToString();
 }
 
+// ================================================================================================
 // Function to export the current data model to a JSON string from memory
+// ================================================================================================
 string ExportModelToJsonString()
 {
     var modelJson = new JObject();
@@ -579,7 +613,9 @@ string ExportModelToJsonString()
     return Newtonsoft.Json.JsonConvert.SerializeObject(modelJson, Newtonsoft.Json.Formatting.Indented);
 }
 
+// ================================================================================================
 // Helper function to get metadata for relationships
+// ================================================================================================
 JArray GetRelationshipsMetadata()
 {
     var relationships = new JArray();
@@ -754,32 +790,39 @@ void SaveDataModelToFile(string jsonContent)
     }
 }
 
-string GetFileIdByName(System.Net.Http.HttpClient client, string baseUrl, string apiKey, string fileNameToFind)
+// ================================================================================================
+// API query to find a file by name and return its ID
+// ================================================================================================
+string GetFileIdByName(HttpClient client, string baseUrl, string apiKey, string fileNameToFind)
 {
-    // Set the authorization header
-    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+    // Set the authorization header using the provided API key
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-    // Make the GET request to fetch the list of files
+    // Make a GET request to fetch the list of files from the API
     var response = client.GetAsync($"{baseUrl}/files").Result;
 
     if (response.IsSuccessStatusCode)
     {
+        // Read and deserialize the response content to a dynamic object
         var content = response.Content.ReadAsStringAsync().Result;
         var filesData = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(content);
 
-        // Search for the file by name
+        // Search for the file by matching the filename
         foreach (var file in filesData["data"])
         {
             if (file["filename"].ToString() == fileNameToFind)
             {
-                return file["id"].ToString(); // Return the file ID if found
+                // Return the file ID if a matching filename is found
+                return file["id"].ToString();
             }
         }
 
-        return ""; // Return empty string if file not found
+        // Return an empty string if the file is not found
+        return "";
     }
     else
     {
+        // Log the error if the GET request fails
         Error($"Error: {response.StatusCode}, {response.ReasonPhrase}");
         return "";
     }
