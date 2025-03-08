@@ -1,6 +1,6 @@
 using Newtonsoft.Json.Linq;
 using Microsoft.Win32;
-
+using System.Linq; // Added for LINQ support
 
 // This script interacts with an OpenAI assistant using an assistant ID.
 // It sends a selected DAX measure for commenting, retrieves the AI-generated comments,
@@ -21,7 +21,6 @@ void UseDaxAssistant()
     // --- END OF CONFIGURATION ---
 
     // OpenAI API key, either provided directly or fetched from the user's environment variables
-    
     string apiKey = string.Empty;
 
     // If API key is not provided directly, attempt to retrieve it from user environment variables
@@ -70,51 +69,71 @@ void UseDaxAssistant()
     string measureExpression = selectedMeasure.Expression;
 
     // Step 3: Define the user's query for the assistant
-    string userQuery = $"Please add comments to the following measure. Use '//' to define comment row. " +
-                       $"Endsure first few rows (up to 5) are comments that briefly describe the entire measure (measure description). " +
-                       $"Additionaly, add comment into the following DAX code, explaining all important code rows. " +
-                       $"The result must be a valid DAX measure expression, as would be used directly inside a measure definition. " +
-                       $"Do not use any characters to define code block start and end (such as DAX or ``` or json), output only DAX code. " +
-                       $"Only output the DAX code (without any quote marks outside of the measure code). " + 
-                       $"Ensure the output DAX code excludes the measure name and equal sign ('='), containing only the commented measure logic and no other comments outside of the measure code. " +
-                       $"Consider the entire data model (refer to the provided DataModel.json file) for context. " +
-                       $"Analyze the referred tables and columns, as well as precedent and dependent measures, to gain a deeper understanding of this measure. " +
-                       $"Ensure that you only add new comments or edit existing comments, " +
-                       $"without altering the original DAX code (other than by adding/editing comments). " +
-                       //$"Mandatory output format: {{\"expression\":\"<put measure DAX expression here (and only here)>\",\"description\":\"<put measure description here>\"}}. " +
-                       //$"There should be no characters beyond the JSON. The output must start from {{ and end with }}\n\nMeasure Expression: {measureExpression}";
-                       $"Measure Expression: {measureExpression}";
+    string userQuery =  
+        $"list all tables form the DataModel.json file";
+        //$"Modify existing comments or add new comments to the given measure while strictly preserving the original DAX code." +
+        //$"Each comment should begin with '//' (for full-line comments) or '--' (for inline comments within a code line)." +
+        //$"Analyze the DataModel.json file to gain insights into the data model, its business context, tables, table relationships, measures." +
+        //$"Ensure the first few comment lines describe the measure's business purpose and context in simple terms." +
+        //$"Add a few lines with a technical explanation of the measure, detailing the purpose of referenced tables, columns, and measures." +
+        //$"Refer to the attached PDF files for a deeper understanding of the DAX language where necessary." +
+        //$"For every important DAX statement, insert a comment line **before** the code explaining its function." +
+        //$"Use inline comments ('--') only for additional clarification within a DAX line, avoiding excessive inline explanations." +
+        //$"If the measure contains any DAX syntax errors, correct them and add a comment explicitly stating what was changed and why." +
+        //$"Do not modify the core measure logic beyond necessary syntax corrections, and do not add extraneous text beyond required comments." +
+        //$"Do not use any special characters or tags to define the code block. Ensure the updated measure is a valid DAX expression." +
+        //$"Ensure the output strictly follows this JSON format: {{\"expression\":\"<put measure DAX expression here (and only here)>\",\"description\":\"<put measure description here>\",\"items\":\"<put a list of tables from DataModel>\",\"test\":\"<put a random joke here>\"}}." +
+        //$"The output must not contain any additional characters outside the JSON structure." +
+        //$"Add comments to short, single-line measures as well." +
+        //$"in the end of the measure add a comment with a list of tables in the data model." +
+        //$"Measure Expression: {measureExpression}";
 
-// Create the response format object using anonymous types
-var responseFormat = new
-{
-    type = "json_schema",
-    json_schema = new
+    // Create the response format object using anonymous types
+    var responseFormat = new
     {
-        name = "response_json_schema",
-        description = "JSON format of the response",
-        strict = true,
-        schema = new
+        type = "json_schema",
+        json_schema = new
         {
-            type = "object",
-            properties = new
+            name = "response_json_schema",
+            description = "JSON format of the response",
+            strict = true,
+            schema = new
             {
-                expression = new
+                type = "object",
+                properties = new
                 {
-                    type = "string",
-                    description = "put measure DAX expression here"
+                    expression = new
+                    {
+                        type = "string",
+                        description = "put measure DAX expression here"
+                    },
+                    description = new
+                    {
+                        type = "string",
+                        description = "put measure description here"
+                    },
+                    //items = new
+                    //{
+                    //    type = "string",
+                    //    test = "put a list of tables in the data model here. Search DataModel.json for the table names. All tables. not just the ones used in this measure."
+                    //},
+                    //test = new
+                    //{
+                    //    type = "string",
+                    //    test = "put a random joke here"
+                    //},
+                    //bomb = new
+                    //{
+                    //    type = "response",
+                    //    bomb = ""
+                    //}
                 },
-                description = new
-                {
-                    type = "string",
-                    description = "put measure description here"
-                }
-            },
-            required = new string[] { "expression", "description" },
-            additionalProperties = false
+                //required = new string[] { "expression", "description", "items", "test", "bomb" },
+                required = new string[] { "expression", "description" },
+                additionalProperties = false
+            }
         }
-    }
-};
+    };
 
     // Step 4: Create an HttpClient instance for making API requests
     using (var client = new System.Net.Http.HttpClient())
@@ -166,8 +185,6 @@ var responseFormat = new
             content = userQuery
         };
 
-        //Output(userQuery);
-
         var messageRequestBody = new System.Net.Http.StringContent(
             Newtonsoft.Json.JsonConvert.SerializeObject(messagePayload),
             System.Text.Encoding.UTF8,
@@ -186,9 +203,12 @@ var responseFormat = new
             assistant_id = assistantId,
             model = model,
             temperature = temperature,
-            tools = new object[] {}, //https://community.openai.com/t/structured-outputs-dont-currently-work-with-file-search-tool-in-assistants-api/900538/19
+            //tools = new object[] {},
+            tools = new object[] { new { type = "file_search" } },
+            tool_choice = new { type = "file_search" },
             response_format = responseFormat     
         };
+
         var runRequestBody = new System.Net.Http.StringContent(
             Newtonsoft.Json.JsonConvert.SerializeObject(runPayload),
             System.Text.Encoding.UTF8,
@@ -225,15 +245,15 @@ var responseFormat = new
         }
 
         // Step 11: Check if the assistant run failed or timed out
-        if (runStatus != "completed")
+        if (attempts > maxAttempts)
         {
-            Error($"Error: {runResult.last_error.ToString()}");
+            Error("Operation timed out after reaching maximum attempts");
             Output(runResult);
             return;
         }
-        else if (attempts > maxAttempts)
+        if (runStatus != "completed")
         {
-            Error("Operation timed out after reaching maximum attempts");
+            Error($"Error: Run Status: {runStatus}");
             Output(runResult);
             return;
         }
