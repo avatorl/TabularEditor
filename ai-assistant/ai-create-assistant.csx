@@ -98,21 +98,40 @@ void CreateOrUpdateDaxAssistant()
     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
     client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
 
-    // If existing assistant found then update it
-    if (CheckAssistantExistsById(client,baseUrl,assistantId)==true)  {
+   bool? exists = CheckAssistantExistsById(client, baseUrl, assistantId);
+
+    if (exists == true)
+    {
+        // Update the existing assistant
         UpdateAssistant(client, assistantId, baseUrl, apiKey, model, instructions, pdfFileNames, pdfFilePaths, pdfFileIdsInTheStorage);
     }
-    // If no existing assistant is found, create a new assistant
-    else
+    else if (exists == false) // Assistant not found
     {
-        CreateDaxAssistant(client, baseUrl, model, $"Assistant for Tabular Editor", instructions, pdfFileNames, pdfFilePaths, pdfFileIdsInTheStorage);
+        // Prompt user with OK/Cancel only once
+        var dialogResult = System.Windows.Forms.MessageBox.Show(
+            $"Failed to retrieve assistant with ID {assistantId}. A new assistant will be created.",
+            "Assistant Not Found",
+            System.Windows.Forms.MessageBoxButtons.OKCancel,
+            System.Windows.Forms.MessageBoxIcon.Warning
+        );
+
+        if (dialogResult == System.Windows.Forms.DialogResult.OK)
+        {
+            // Create a new assistant
+            CreateDaxAssistant(client, baseUrl, model, $"Assistant for Tabular Editor 3", instructions, pdfFileNames, pdfFilePaths, pdfFileIdsInTheStorage);
+        }
+        else
+        {
+            // Do nothing if the user selects "Cancel"
+            Info("Operation canceled by the user.");
+        }
     }
 }
 
 // ================================================================================================
-// Function to check if an assistant with a certain ID exists in the OpenAI API
+// Check if the assistant already exists (by assistantId)
 // ================================================================================================
-bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
+bool? CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl, string assistantId)
 {
     try
     {
@@ -123,8 +142,9 @@ bool CheckAssistantExistsById(System.Net.Http.HttpClient client, string baseUrl,
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = response.Content.ReadAsStringAsync().Result;
-            Error($"Failed to retrieve assistant with ID {assistantId}: {errorContent}");
-            return false; // Return false on failure
+
+            // Return false, but let the caller decide whether to prompt the user
+            return false;
         }
 
         // Parse the response content as a string
@@ -290,7 +310,11 @@ for (int i = 0; i < pdfFileNames.Length; i++)
         name = name,
         instructions = instructions,
         model = model,
-        tools = new[] { new { type = "file_search" } },
+        response_format = new { type = "json_object" },
+        tools = new object[]
+    {
+        new { type = "file_search" }    // File Search
+    },
         tool_resources = new
         {
             file_search = new
@@ -393,7 +417,10 @@ for (int i = 0; i < pdfFileNames.Length; i++)
     {
         instructions = instructions, // New instructions for the assistant
         model = model,               // AI model to use (e.g., gpt-4o)
-        tools = new[] { new { type = "file_search" } }, // Assistant tools (file search)
+        tools = new[]
+    {
+        new { type = "file_search" }    // File Search
+    },
         tool_resources = new
         {
             file_search = new
