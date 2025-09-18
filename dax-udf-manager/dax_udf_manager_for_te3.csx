@@ -267,7 +267,7 @@ AddLegendItem("exists in model", System.Drawing.Color.Black, System.Drawing.Font
 AddLegendItem("match", System.Drawing.Color.Green, System.Drawing.FontStyle.Bold);
 AddLegendItem("differs", System.Drawing.Color.Red, System.Drawing.FontStyle.Bold);
 AddLegendItem("deleted", System.Drawing.Color.DarkOrange, System.Drawing.FontStyle.Bold);
-AddLegendItem("model-only UDF", System.Drawing.Color.Blue, System.Drawing.FontStyle.Bold);
+AddLegendItem("model-only functions", System.Drawing.Color.Blue, System.Drawing.FontStyle.Bold);
 
 layout.Controls.Add(legend, 0, 1);
 
@@ -327,7 +327,7 @@ Action RefreshTree = () =>
         try
         {
             tree.Nodes.Clear();
-            var root = new System.Windows.Forms.TreeNode($"{owner}/{repo}/{folder}");
+            var root = new System.Windows.Forms.TreeNode($"═════ GitHub: {owner}/{repo}/{folder} ═════");
             tree.Nodes.Add(root);
 
             // Helper to find existing node or create new one
@@ -361,7 +361,7 @@ Action RefreshTree = () =>
             }
 
             // Build model-only branch
-            var modelOnlyRoot = new System.Windows.Forms.TreeNode("Model-only UDFs");
+            var modelOnlyRoot = new System.Windows.Forms.TreeNode("═════ Model-only functions (not in GitHub) ═════");
             tree.Nodes.Add(modelOnlyRoot);
 
             // For each model UDF not found in repo → mark as blue
@@ -484,17 +484,18 @@ LoadFolders = (apiUrl, relPath, parentNode) =>
 
             if (type == "dir")
             {
-                var nextApi = item["url"]?.ToString();
-                var nextRel = string.IsNullOrEmpty(relPath) ? name : $"{relPath}/{name}";
+                // Skip subfolders that begin with "_" (ignored by convention)
+                if (!name.StartsWith("_", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    var nextApi = item["url"]?.ToString();
+                    var nextRel = string.IsNullOrEmpty(relPath) ? name : $"{relPath}/{name}";
 
-                var dirNode = new System.Windows.Forms.TreeNode(name);
-                dirNode.Tag = nextRel;
+                    var dirNode = new System.Windows.Forms.TreeNode(name);
+                    dirNode.Tag = nextRel;
+                    parentNode.Nodes.Add(dirNode);
 
-                parentNode.Nodes.Add(dirNode);
-
-                // ❌ Wrong: dirNode.BeforeExpand (doesn't exist)
-                // ✅ Instead, load recursively now
-                LoadFolders(nextApi, nextRel, dirNode);
+                    LoadFolders(nextApi, nextRel, dirNode);
+                }
             }
         }
     }
@@ -503,6 +504,7 @@ LoadFolders = (apiUrl, relPath, parentNode) =>
         System.Diagnostics.Debug.WriteLine("LoadFolders error: " + ex);
     }
 };
+
 
 
     // Root node for the repo folder
